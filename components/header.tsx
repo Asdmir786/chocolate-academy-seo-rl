@@ -219,8 +219,8 @@ export default function HomeHeader() {
                 <DropdownMenu key={item.name}>
                   <DropdownMenuTrigger asChild>
                     <button className="relative px-3 py-2 text-xs font-medium overflow-hidden group flex items-center">
-                      <span className="z-10 group-hover:text-amber-400 text-white">{item.name}</span>
-                      <ChevronDown className="h-3 w-3 ml-1 opacity-70 group-hover:text-amber-400 text-white" />
+                      <span className="z-10 group-hover:text-white text-white">{item.name}</span>
+                      <ChevronDown className="h-3 w-3 ml-1 opacity-70 group-hover:text-white text-white" />
                       <span className="absolute bottom-0 left-0 w-full h-0 bg-[#2a1a0f] transition-all group-hover:h-full" />
                     </button>
                   </DropdownMenuTrigger>
@@ -241,7 +241,7 @@ export default function HomeHeader() {
                   href={item.href}
                   className="relative px-3 py-2 text-xs font-medium overflow-hidden group"
                 >
-                  <span className="z-10 group-hover:text-amber-400 text-white">{item.name}</span>
+                  <span className="z-10 group-hover:text-white text-white">{item.name}</span>
                   <span className="absolute bottom-0 left-0 w-full h-0 bg-[#2a1a0f] transition-all group-hover:h-full" />
                 </Link>
               ),
