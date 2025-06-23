@@ -1,0 +1,13 @@
+{
+  "whatsappClicks": [
+    {
+      "productName": "Not specified",
+      "url": "http://localhost:3000/admin/analytics",
+      "city": "not-specified",
+      "source": "header",
+      "buttonLocation": "top_bar",
+      "timestamp": "2025-05-20T13:26:06.479Z",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+    }
+  ]
+}
