@@ -18,29 +18,30 @@ export type AnalyticsData = {
   whatsappClicks: WhatsAppClickEvent[]
 }
 
-// Initialize Neon database client with connection string
-const sql = neon(process.env.DATABASE_URL!)
+// Initialize Neon database client - REQUIRED
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required")
+}
 
-// Fallback in-memory storage
-const inMemoryStore: WhatsAppClickEvent[] = []
+const sql = neon(process.env.DATABASE_URL)
 
 // Test database connection
 async function testDatabaseConnection() {
   try {
-    console.log("🔄 Testing database connection...")
+    console.log("🔄 Testing Neon database connection...")
     const result = await sql`SELECT NOW() as current_time, version() as db_version`
     console.log("✅ Database connection successful:", result[0])
     return true
   } catch (error) {
     console.error("❌ Database connection failed:", error)
-    return false
+    throw new Error(`Database connection failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
 // Initialize database table
 async function initializeDatabase() {
   try {
-    console.log("🔄 Initializing database table...")
+    console.log("🔄 Initializing whatsapp_clicks table...")
 
     // Create table if it doesn't exist
     await sql`
@@ -59,32 +60,34 @@ async function initializeDatabase() {
       )
     `
 
-    console.log("✅ Table created/verified successfully")
+    console.log("✅ Table whatsapp_clicks created/verified successfully")
 
-    // Create indexes
+    // Create indexes for better performance
     await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_timestamp ON whatsapp_clicks(timestamp)`
     await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_product_name ON whatsapp_clicks(product_name)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_city ON whatsapp_clicks(city)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_source ON whatsapp_clicks(source)`
 
-    console.log("✅ Indexes created successfully")
+    console.log("✅ Database indexes created successfully")
 
     // Check current record count
     const count = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
-    console.log(`📊 Current records in database: ${count[0]?.count || 0}`)
+    console.log(`📊 Current records in whatsapp_clicks table: ${count[0]?.count || 0}`)
 
     return true
   } catch (error) {
     console.error("❌ Database initialization failed:", error)
-    return false
+    throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
 export async function POST(request: Request) {
-  console.log("📥 POST /api/track-whatsapp - Starting request processing")
+  console.log("📥 POST /api/track-whatsapp - Processing WhatsApp click tracking")
 
   try {
     // Parse request body
     const body = await request.json()
-    console.log("📋 Received request body:", JSON.stringify(body, null, 2))
+    console.log("📋 Received tracking data:", JSON.stringify(body, null, 2))
 
     // Validate required fields
     if (!body.url) {
@@ -105,117 +108,74 @@ export async function POST(request: Request) {
       phoneNumber: body.phoneNumber || null,
     }
 
-    console.log("📝 Prepared event data:", JSON.stringify(event, null, 2))
+    console.log("📝 Prepared event for database:", JSON.stringify(event, null, 2))
 
-    // Check if DATABASE_URL exists
-    if (!process.env.DATABASE_URL) {
-      console.error("❌ DATABASE_URL environment variable not found")
+    // Test database connection
+    await testDatabaseConnection()
 
-      // Fallback to memory storage
-      inMemoryStore.push(event)
-      console.log("💾 Saved to memory storage (no DATABASE_URL)")
+    // Initialize database if needed
+    await initializeDatabase()
 
-      return NextResponse.json({
-        success: true,
-        fallback: true,
-        message: "Data saved to memory (DATABASE_URL not configured)",
-        totalRecords: inMemoryStore.length,
-      })
-    }
+    // Insert the record into Neon database
+    console.log("🔄 Inserting record into whatsapp_clicks table...")
+    const insertResult = await sql`
+      INSERT INTO whatsapp_clicks (
+        product_id, 
+        product_name, 
+        url, 
+        city, 
+        source, 
+        button_location, 
+        timestamp, 
+        user_agent, 
+        phone_number
+      ) VALUES (
+        ${event.productId}, 
+        ${event.productName}, 
+        ${event.url}, 
+        ${event.city}, 
+        ${event.source}, 
+        ${event.buttonLocation}, 
+        ${event.timestamp}::timestamptz, 
+        ${event.userAgent}, 
+        ${event.phoneNumber}
+      )
+      RETURNING id, timestamp, created_at
+    `
 
-    try {
-      console.log("🔄 Attempting to save to Neon database...")
+    console.log("✅ Successfully inserted record into Neon database:", insertResult[0])
 
-      // Test connection first
-      const connectionOk = await testDatabaseConnection()
-      if (!connectionOk) {
-        throw new Error("Database connection test failed")
-      }
+    // Verify the insert by counting total records
+    const verifyCount = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
+    console.log(`📊 Total records after insert: ${verifyCount[0]?.count || 0}`)
 
-      // Initialize database
-      const dbInitialized = await initializeDatabase()
-      if (!dbInitialized) {
-        throw new Error("Database initialization failed")
-      }
+    // Get the inserted record to verify data integrity
+    const insertedRecord = await sql`
+      SELECT * FROM whatsapp_clicks 
+      WHERE id = ${insertResult[0]?.id}
+    `
+    console.log("🔍 Inserted record verification:", insertedRecord[0])
 
-      // Insert the record
-      console.log("🔄 Inserting record into whatsapp_clicks table...")
-      const insertResult = await sql`
-        INSERT INTO whatsapp_clicks (
-          product_id, 
-          product_name, 
-          url, 
-          city, 
-          source, 
-          button_location, 
-          timestamp, 
-          user_agent, 
-          phone_number
-        ) VALUES (
-          ${event.productId}, 
-          ${event.productName}, 
-          ${event.url}, 
-          ${event.city}, 
-          ${event.source}, 
-          ${event.buttonLocation}, 
-          ${event.timestamp}::timestamptz, 
-          ${event.userAgent}, 
-          ${event.phoneNumber}
-        )
-        RETURNING id, timestamp, created_at
-      `
-
-      console.log("✅ Successfully inserted record:", insertResult[0])
-
-      // Verify the insert
-      const verifyCount = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
-      console.log(`📊 Total records after insert: ${verifyCount[0]?.count || 0}`)
-
-      // Get the inserted record to verify
-      const insertedRecord = await sql`
-        SELECT * FROM whatsapp_clicks 
-        WHERE id = ${insertResult[0]?.id}
-      `
-      console.log("🔍 Inserted record verification:", insertedRecord[0])
-
-      return NextResponse.json({
-        success: true,
-        id: insertResult[0]?.id,
-        timestamp: insertResult[0]?.timestamp,
-        message: "Data successfully saved to Neon database",
-        totalRecords: verifyCount[0]?.count || 0,
-        insertedRecord: insertedRecord[0],
-        databaseConnected: true,
-      })
-    } catch (dbError) {
-      console.error("❌ Database operation failed:", dbError)
-      console.error("❌ Error details:", {
-        name: dbError instanceof Error ? dbError.name : "Unknown",
-        message: dbError instanceof Error ? dbError.message : "Unknown error",
-        stack: dbError instanceof Error ? dbError.stack : "No stack trace",
-      })
-
-      // Fallback to memory storage
-      inMemoryStore.push(event)
-      console.log("💾 Saved to memory storage as fallback")
-      console.log(`💾 Memory store now has ${inMemoryStore.length} records`)
-
-      return NextResponse.json({
-        success: true,
-        fallback: true,
-        message: "Data saved to memory (database error)",
-        error: dbError instanceof Error ? dbError.message : "Unknown database error",
-        totalRecords: inMemoryStore.length,
-        databaseConnected: false,
-      })
-    }
+    return NextResponse.json({
+      success: true,
+      id: insertResult[0]?.id,
+      timestamp: insertResult[0]?.timestamp,
+      message: "WhatsApp click successfully saved to Neon database",
+      totalRecords: verifyCount[0]?.count || 0,
+      insertedRecord: insertedRecord[0],
+      databaseConnected: true,
+      source: "neon_database",
+    })
   } catch (error) {
-    console.error("❌ Request processing failed:", error)
+    console.error("❌ Failed to save WhatsApp click to database:", error)
+
+    // Return error - no fallback to memory
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to process tracking request",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: "Failed to save to database",
+        details: error instanceof Error ? error.message : "Unknown database error",
+        databaseConnected: false,
       },
       { status: 500 },
     )
@@ -223,103 +183,74 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  console.log("📤 GET /api/track-whatsapp - Starting data retrieval")
+  console.log("📤 GET /api/track-whatsapp - Retrieving WhatsApp click data from Neon database")
 
   try {
-    // Check if DATABASE_URL exists
-    if (!process.env.DATABASE_URL) {
-      console.log("💾 Using memory storage (no DATABASE_URL)")
-      return NextResponse.json({
-        whatsappClicks: inMemoryStore,
-        source: "memory_only",
-        totalRecords: inMemoryStore.length,
-        databaseConnected: false,
-      })
+    // Test database connection
+    await testDatabaseConnection()
+
+    // Initialize database if needed
+    await initializeDatabase()
+
+    // Fetch all records from Neon database
+    console.log("🔄 Fetching records from whatsapp_clicks table...")
+    const results = await sql`
+      SELECT 
+        id,
+        product_id,
+        product_name, 
+        url, 
+        city, 
+        source, 
+        button_location,
+        timestamp,
+        user_agent,
+        phone_number,
+        created_at
+      FROM whatsapp_clicks 
+      ORDER BY timestamp DESC 
+      LIMIT 1000
+    `
+
+    console.log(`📋 Retrieved ${results.length} records from Neon database`)
+    if (results.length > 0) {
+      console.log("📋 Sample record:", results[0])
     }
 
-    try {
-      console.log("🔄 Fetching data from Neon database...")
+    // Map database results to expected format
+    const mappedResults: WhatsAppClickEvent[] = results.map((row: any) => ({
+      productId: row.product_id,
+      productName: row.product_name,
+      url: row.url,
+      city: row.city,
+      source: row.source,
+      buttonLocation: row.button_location,
+      timestamp: row.timestamp,
+      userAgent: row.user_agent,
+      phoneNumber: row.phone_number,
+    }))
 
-      // Test connection
-      const connectionOk = await testDatabaseConnection()
-      if (!connectionOk) {
-        throw new Error("Database connection test failed")
-      }
+    console.log(`✅ Successfully mapped ${mappedResults.length} records from Neon database`)
 
-      // Initialize database if needed
-      const dbInitialized = await initializeDatabase()
-      if (!dbInitialized) {
-        throw new Error("Database initialization failed")
-      }
-
-      // Fetch all records
-      const results = await sql`
-        SELECT 
-          id,
-          product_id,
-          product_name, 
-          url, 
-          city, 
-          source, 
-          button_location,
-          timestamp,
-          user_agent,
-          phone_number,
-          created_at
-        FROM whatsapp_clicks 
-        ORDER BY timestamp DESC 
-        LIMIT 1000
-      `
-
-      console.log(`📋 Retrieved ${results.length} records from database`)
-      if (results.length > 0) {
-        console.log("📋 Sample record:", results[0])
-      }
-
-      // Map database results to expected format
-      const mappedResults: WhatsAppClickEvent[] = results.map((row: any) => ({
-        productId: row.product_id,
-        productName: row.product_name,
-        url: row.url,
-        city: row.city,
-        source: row.source,
-        buttonLocation: row.button_location,
-        timestamp: row.timestamp,
-        userAgent: row.user_agent,
-        phoneNumber: row.phone_number,
-      }))
-
-      console.log(`✅ Successfully mapped ${mappedResults.length} records`)
-
-      return NextResponse.json({
-        whatsappClicks: mappedResults,
-        source: "neon_database",
-        totalRecords: mappedResults.length,
-        databaseConnected: true,
-        message: "Data retrieved from Neon database successfully",
-      })
-    } catch (dbError) {
-      console.error("❌ Database retrieval failed:", dbError)
-
-      // Fallback to memory storage
-      console.log("💾 Falling back to memory storage")
-      return NextResponse.json({
-        whatsappClicks: inMemoryStore,
-        source: "memory_fallback",
-        error: "Database unavailable",
-        totalRecords: inMemoryStore.length,
-        databaseConnected: false,
-      })
-    }
+    return NextResponse.json({
+      whatsappClicks: mappedResults,
+      source: "neon_database",
+      totalRecords: mappedResults.length,
+      databaseConnected: true,
+      message: "Data successfully retrieved from Neon database",
+    })
   } catch (error) {
-    console.error("❌ GET request failed:", error)
+    console.error("❌ Failed to retrieve data from Neon database:", error)
+
+    // Return error - no fallback to memory
     return NextResponse.json(
       {
         whatsappClicks: [],
-        error: "Failed to retrieve data",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: "Failed to retrieve data from database",
+        details: error instanceof Error ? error.message : "Unknown database error",
         databaseConnected: false,
         totalRecords: 0,
+        source: "database_error",
       },
       { status: 500 },
     )

@@ -32,40 +32,30 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState({ start: "", end: "" })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [dataSource, setDataSource] = useState<string>("unknown")
-  const [apiResponse, setApiResponse] = useState<any>(null)
   const [databaseConnected, setDatabaseConnected] = useState<boolean>(false)
+  const [apiResponse, setApiResponse] = useState<any>(null)
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is authenticated
+    // Check authentication
     const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
-
-    // Check if authentication has expired
     const expiresAt = localStorage.getItem("adminAuthExpires")
     const isExpired = expiresAt ? new Date().getTime() > Number.parseInt(expiresAt) : true
 
     if (!isAuthenticated || isExpired) {
-      // Clear expired authentication
       if (isExpired) {
         localStorage.removeItem("adminAuthenticated")
         localStorage.removeItem("adminAuthExpires")
       }
-
-      // Redirect to login page
       router.push("/admin/login")
     } else {
-      // Fetch data if authenticated
       fetchAnalyticsData()
     }
   }, [router])
 
   const handleLogout = () => {
-    // Clear authentication
     localStorage.removeItem("adminAuthenticated")
     localStorage.removeItem("adminAuthExpires")
-
-    // Redirect to login page
     router.push("/admin/login")
   }
 
@@ -73,37 +63,29 @@ export default function AnalyticsPage() {
     setIsLoading(true)
     setError(null)
     try {
-      // Add a timestamp to prevent caching
-      const timestamp = new Date().getTime()
-      console.log("🔄 Fetching analytics data from API...")
+      console.log("🔄 Fetching analytics data from Neon database...")
 
-      const response = await fetch(`/api/track-whatsapp?t=${timestamp}`)
-      console.log("📡 API Response status:", response.status)
-      console.log("📡 API Response headers:", Object.fromEntries(response.headers.entries()))
+      const response = await fetch(`/api/track-whatsapp?t=${new Date().getTime()}`)
+      console.log("📡 Analytics API Response status:", response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("❌ API Error Response:", errorText)
+        console.error("❌ Analytics API Error:", errorText)
         throw new Error(`API responded with status: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
-      console.log("📋 Raw API response data:", data)
-      console.log("📊 Data source:", data.source)
-      console.log("📊 Total records:", data.totalRecords)
+      console.log("📋 Analytics API response data:", data)
       console.log("📊 Database connected:", data.databaseConnected)
-      console.log("🔍 Type of whatsappClicks:", typeof data.whatsappClicks)
-      console.log("🔍 Is whatsappClicks an array?", Array.isArray(data.whatsappClicks))
+      console.log("📊 Total records:", data.totalRecords)
 
-      // Store the full API response for debugging
       setApiResponse(data)
-      setDataSource(data.source || "unknown")
       setDatabaseConnected(data.databaseConnected || false)
 
       if (!data || !Array.isArray(data.whatsappClicks)) {
-        console.warn("⚠️ Unexpected data format:", data)
+        console.warn("⚠️ Invalid data format received:", data)
         setAnalyticsData([])
-        setError("Received invalid data format from API")
+        setError("Invalid data format received from API")
       } else {
         console.log(`✅ Setting analytics data with ${data.whatsappClicks.length} records`)
         setAnalyticsData(data.whatsappClicks || [])
@@ -111,7 +93,7 @@ export default function AnalyticsPage() {
       }
     } catch (err) {
       console.error("❌ Error fetching analytics data:", err)
-      setError(err instanceof Error ? err.message : "An unknown error occurred")
+      setError(err instanceof Error ? err.message : "Failed to fetch analytics data")
       setAnalyticsData([])
       setDatabaseConnected(false)
     } finally {
@@ -122,7 +104,7 @@ export default function AnalyticsPage() {
   const clearAnalyticsData = async () => {
     setIsClearing(true)
     try {
-      console.log("🗑️ Attempting to clear analytics data...")
+      console.log("🗑️ Clearing analytics data from Neon database...")
 
       const response = await fetch("/api/track/clear", {
         method: "POST",
@@ -131,13 +113,12 @@ export default function AnalyticsPage() {
       if (!response.ok) {
         const errorText = await response.text()
         console.error("❌ Clear API Error:", errorText)
-        throw new Error(`API responded with status: ${response.status} - ${errorText}`)
+        throw new Error(`Clear API responded with status: ${response.status} - ${errorText}`)
       }
 
       const result = await response.json()
-      console.log("✅ Clear data result:", result)
+      console.log("✅ Clear operation result:", result)
 
-      // Refresh the data
       await fetchAnalyticsData()
       setDialogOpen(false)
     } catch (err) {
@@ -162,7 +143,7 @@ export default function AnalyticsPage() {
     )
   })
 
-  // Filter by date range if provided
+  // Filter by date range
   const dateFilteredData = filteredData.filter((event) => {
     if (!dateRange.start && !dateRange.end) return true
 
@@ -171,7 +152,6 @@ export default function AnalyticsPage() {
       const startDate = dateRange.start ? new Date(dateRange.start) : new Date(0)
       const endDate = dateRange.end ? new Date(dateRange.end) : new Date()
 
-      // Add one day to end date to include the entire day
       if (dateRange.end) {
         endDate.setDate(endDate.getDate() + 1)
       }
@@ -234,14 +214,10 @@ export default function AnalyticsPage() {
     }
   }
 
-  // Get database status
+  // Get database status - ONLY CONNECTED OR DISCONNECTED
   const getDatabaseStatus = () => {
-    if (databaseConnected && dataSource === "neon_database") {
+    if (databaseConnected) {
       return { status: "Connected", color: "text-green-600", icon: CheckCircle }
-    } else if (dataSource === "memory_fallback") {
-      return { status: "Memory Fallback", color: "text-yellow-600", icon: AlertCircle }
-    } else if (dataSource === "memory_only") {
-      return { status: "Memory Only", color: "text-yellow-600", icon: AlertCircle }
     } else {
       return { status: "Disconnected", color: "text-red-600", icon: XCircle }
     }
@@ -260,7 +236,7 @@ export default function AnalyticsPage() {
             <div>
               <h1 className="text-3xl font-bold text-[#3c2415] mb-2 flex items-center gap-2">
                 <Database className="h-8 w-8" />
-                WhatsApp Click Analytics
+                WhatsApp Click Analytics - Neon Database
               </h1>
               <p className="text-gray-600">
                 Track and analyze WhatsApp button clicks stored in Neon database to understand customer engagement.
@@ -269,7 +245,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-gray-500 mt-1">Last updated: {formatDate(lastUpdated.toISOString())}</p>
               )}
               <p className="text-sm text-gray-500">
-                Data source: <span className="font-medium">{dataSource}</span>
+                Data source: <span className="font-medium">Neon Database Only</span>
               </p>
             </div>
             <div className="mt-4 md:mt-0 flex gap-2">
@@ -292,8 +268,8 @@ export default function AnalyticsPage() {
                   <DialogHeader>
                     <DialogTitle>Clear Analytics Data</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to clear all WhatsApp click analytics data from the database? This action
-                      cannot be undone.
+                      Are you sure you want to clear all WhatsApp click analytics data from the Neon database? This
+                      action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -312,43 +288,39 @@ export default function AnalyticsPage() {
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
+              <AlertTitle>Database Error</AlertTitle>
               <AlertDescription>
                 {error}
                 <div className="mt-2">
                   <Button variant="outline" size="sm" onClick={fetchAnalyticsData}>
-                    Try Again
+                    Retry Connection
                   </Button>
                 </div>
               </AlertDescription>
             </Alert>
           )}
 
-          {/* Debug Information */}
+          {/* Database Status Information */}
           {apiResponse && (
             <Alert className="mb-6">
               <Database className="h-4 w-4" />
-              <AlertTitle>Debug Information</AlertTitle>
+              <AlertTitle>Neon Database Status</AlertTitle>
               <AlertDescription>
                 <div className="mt-2 text-sm">
-                  <p>
-                    <strong>Data Source:</strong> {apiResponse.source}
-                  </p>
                   <p>
                     <strong>Database Connected:</strong> {databaseConnected ? "Yes" : "No"}
                   </p>
                   <p>
-                    <strong>Total Records:</strong>{" "}
-                    {apiResponse.totalRecords || apiResponse.whatsappClicks?.length || 0}
+                    <strong>Total Records:</strong> {apiResponse.totalRecords || 0}
                   </p>
-                  {apiResponse.error && (
-                    <p>
-                      <strong>Error:</strong> {apiResponse.error}
-                    </p>
-                  )}
                   {apiResponse.message && (
                     <p>
                       <strong>Message:</strong> {apiResponse.message}
+                    </p>
+                  )}
+                  {apiResponse.error && (
+                    <p className="text-red-600">
+                      <strong>Error:</strong> {apiResponse.error}
                     </p>
                   )}
                 </div>
@@ -439,7 +411,7 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-[#3c2415]">Database Status</CardTitle>
-                <CardDescription>Connection status</CardDescription>
+                <CardDescription>Neon Database Connection</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className={`text-xl font-bold ${dbStatus.color} flex items-center gap-2`}>
@@ -471,7 +443,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">All WhatsApp Clicks</CardTitle>
-                  <CardDescription>Detailed list of all WhatsApp button clicks stored in the database</CardDescription>
+                  <CardDescription>Detailed list of all WhatsApp button clicks from Neon database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -481,7 +453,7 @@ export default function AnalyticsPage() {
                   ) : dateFilteredData.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No data available in database</p>
+                      <p>No data available in Neon database</p>
                       <p className="text-sm mt-2">
                         WhatsApp clicks will appear here once users interact with your site
                       </p>
@@ -524,7 +496,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by Product</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by product from database</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by product from Neon database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -563,7 +535,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by City</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by city from database</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by city from Neon database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -602,7 +574,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by Source</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by page source from database</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by page source from Neon database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
