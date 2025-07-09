@@ -15,7 +15,7 @@ export type AnalyticsData = {
   whatsappClicks: WhatsAppClickEvent[]
 }
 
-// In-memory storage for WhatsApp clicks
+// In-memory storage for WhatsApp clicks (fallback only)
 let whatsappClicks: WhatsAppClickEvent[] = []
 
 // Default WhatsApp number to use if none is provided
@@ -51,6 +51,7 @@ export const trackWhatsAppClick = async (data: {
         source: data.source,
         buttonLocation: data.buttonLocation,
         userAgent: navigator.userAgent,
+        phoneNumber: data.phoneNumber,
       }),
     })
 
@@ -94,12 +95,12 @@ export const trackWhatsAppClick = async (data: {
   }
 }
 
-// Get all WhatsApp clicks
+// Get all WhatsApp clicks (fallback function)
 export function getWhatsAppClicks(): WhatsAppClickEvent[] {
   return whatsappClicks
 }
 
-// Clear all WhatsApp clicks from memory
+// Clear all WhatsApp clicks from memory (fallback function)
 export function clearWhatsAppClicks() {
   whatsappClicks = []
   return true

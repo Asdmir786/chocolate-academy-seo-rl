@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, LogOut, Trash2 } from "lucide-react"
+import { AlertCircle, LogOut, Trash2, Database, RefreshCw } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ export default function AnalyticsPage() {
   const [filter, setFilter] = useState("")
   const [dateRange, setDateRange] = useState({ start: "", end: "" })
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -85,6 +86,7 @@ export default function AnalyticsPage() {
         setAnalyticsData([])
       } else {
         setAnalyticsData(data.whatsappClicks || [])
+        setLastUpdated(new Date())
       }
     } catch (err) {
       console.error("Error fetching analytics data:", err)
@@ -110,7 +112,7 @@ export default function AnalyticsPage() {
       console.log("Clear data result:", result)
 
       // Refresh the data
-      setAnalyticsData([])
+      await fetchAnalyticsData()
       setDialogOpen(false)
     } catch (err) {
       console.error("Error clearing analytics data:", err)
@@ -127,13 +129,10 @@ export default function AnalyticsPage() {
     const searchTerm = filter.toLowerCase()
     return (
       event.productName?.toLowerCase().includes(searchTerm) ||
-      false ||
       event.source?.toLowerCase().includes(searchTerm) ||
-      false ||
       event.city?.toLowerCase().includes(searchTerm) ||
-      false ||
       event.buttonLocation?.toLowerCase().includes(searchTerm) ||
-      false
+      event.url?.toLowerCase().includes(searchTerm)
     )
   })
 
@@ -217,13 +216,23 @@ export default function AnalyticsPage() {
         <div className="container mx-auto px-4">
           <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
             <div>
-              <h1 className="text-3xl font-bold text-[#3c2415] mb-2">WhatsApp Click Analytics</h1>
+              <h1 className="text-3xl font-bold text-[#3c2415] mb-2 flex items-center gap-2">
+                <Database className="h-8 w-8" />
+                WhatsApp Click Analytics
+              </h1>
               <p className="text-gray-600">
-                Track and analyze WhatsApp button clicks across your website to understand customer engagement.
+                Track and analyze WhatsApp button clicks stored in Neon database to understand customer engagement.
               </p>
+              {lastUpdated && (
+                <p className="text-sm text-gray-500 mt-1">Last updated: {formatDate(lastUpdated.toISOString())}</p>
+              )}
             </div>
             <div className="mt-4 md:mt-0 flex gap-2">
-              <Button variant="outline" className="flex items-center gap-2" onClick={handleLogout}>
+              <Button variant="outline" className="flex items-center gap-2 bg-transparent" onClick={fetchAnalyticsData}>
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+              <Button variant="outline" className="flex items-center gap-2 bg-transparent" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
                 Logout
               </Button>
@@ -238,7 +247,8 @@ export default function AnalyticsPage() {
                   <DialogHeader>
                     <DialogTitle>Clear Analytics Data</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to clear all WhatsApp click analytics data? This action cannot be undone.
+                      Are you sure you want to clear all WhatsApp click analytics data from the database? This action
+                      cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -276,7 +286,7 @@ export default function AnalyticsPage() {
               </Label>
               <Input
                 id="search"
-                placeholder="Search by product, source, city..."
+                placeholder="Search by product, source, city, URL..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="mt-1"
@@ -307,11 +317,11 @@ export default function AnalyticsPage() {
               />
             </div>
             <Button onClick={fetchAnalyticsData} className="bg-[#3c2415] hover:bg-[#5a3a28] mt-1">
-              Refresh Data
+              Apply Filters
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-[#3c2415]">Total Clicks</CardTitle>
@@ -349,6 +359,18 @@ export default function AnalyticsPage() {
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[#3c2415]">Database Status</CardTitle>
+                <CardDescription>Connection status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold text-green-600">
+                  {analyticsData.length > 0 ? "Connected" : "No Data"}
+                </div>
+                <div className="text-sm text-gray-500">Neon Database</div>
+              </CardContent>
+            </Card>
           </div>
 
           <Tabs defaultValue="all" className="mb-8">
@@ -371,7 +393,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">All WhatsApp Clicks</CardTitle>
-                  <CardDescription>Detailed list of all WhatsApp button clicks across the website</CardDescription>
+                  <CardDescription>Detailed list of all WhatsApp button clicks stored in the database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -379,7 +401,13 @@ export default function AnalyticsPage() {
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
                     </div>
                   ) : dateFilteredData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No data available</div>
+                    <div className="text-center py-8 text-gray-500">
+                      <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No data available in database</p>
+                      <p className="text-sm mt-2">
+                        WhatsApp clicks will appear here once users interact with your site
+                      </p>
+                    </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -390,6 +418,7 @@ export default function AnalyticsPage() {
                             <TableHead>Source</TableHead>
                             <TableHead>Location</TableHead>
                             <TableHead>City</TableHead>
+                            <TableHead>URL</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -400,6 +429,9 @@ export default function AnalyticsPage() {
                               <TableCell>{event.source || "N/A"}</TableCell>
                               <TableCell>{event.buttonLocation || "N/A"}</TableCell>
                               <TableCell className="capitalize">{event.city || "N/A"}</TableCell>
+                              <TableCell className="max-w-xs truncate" title={event.url}>
+                                {event.url || "N/A"}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -414,7 +446,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by Product</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by product</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by product from database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -422,7 +454,7 @@ export default function AnalyticsPage() {
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
                     </div>
                   ) : productChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No data available</div>
+                    <div className="text-center py-8 text-gray-500">No product data available</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -453,7 +485,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by City</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by city</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by city from database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -461,7 +493,7 @@ export default function AnalyticsPage() {
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
                     </div>
                   ) : cityChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No data available</div>
+                    <div className="text-center py-8 text-gray-500">No city data available</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -492,7 +524,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#3c2415]">Clicks by Source</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by page source</CardDescription>
+                  <CardDescription>Analysis of WhatsApp clicks by page source from database</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -500,7 +532,7 @@ export default function AnalyticsPage() {
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
                     </div>
                   ) : sourceChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No data available</div>
+                    <div className="text-center py-8 text-gray-500">No source data available</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -537,7 +569,7 @@ export default function AnalyticsPage() {
               variant="outline"
               onClick={() => {
                 // Create CSV content
-                const headers = ["Date", "Product", "Source", "Location", "City", "URL"]
+                const headers = ["Date", "Product", "Source", "Location", "City", "URL", "User Agent"]
                 const csvContent = [
                   headers.join(","),
                   ...dateFilteredData.map((event) =>
@@ -548,6 +580,7 @@ export default function AnalyticsPage() {
                       `"${event.buttonLocation || "N/A"}"`,
                       `"${event.city || "N/A"}"`,
                       `"${event.url || "N/A"}"`,
+                      `"${event.userAgent || "N/A"}"`,
                     ].join(","),
                   ),
                 ].join("\n")
