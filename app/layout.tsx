@@ -79,6 +79,15 @@ export default function RootLayout({
             gtag('config', 'YOUR_GA_MEASUREMENT_ID');
           `}
         </Script>
+        <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-50D19VH9C0"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-50D19VH9C0');
+</script>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <TrackingScript />
