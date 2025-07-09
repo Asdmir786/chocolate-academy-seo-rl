@@ -35,7 +35,7 @@ export const trackWhatsAppClick = async (data: {
     if (typeof window === "undefined") return // Only run on client side
 
     // Log to console for debugging
-    console.log("🔄 Starting WhatsApp click tracking:", data)
+    console.log("🔄 Starting WhatsApp click tracking with data:", data)
 
     // Prepare tracking data
     const trackingData = {
@@ -63,12 +63,11 @@ export const trackWhatsAppClick = async (data: {
 
     console.log("📡 API Response status:", response.status)
     console.log("📡 API Response ok:", response.ok)
-    console.log("📡 API Response headers:", Object.fromEntries(response.headers.entries()))
 
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`❌ API error: ${response.status} ${response.statusText}`)
-      console.error("❌ API error details:", errorText)
+      console.error("❌ API error response:", errorText)
       // Continue execution even if API fails
     } else {
       const responseData = await response.json()
@@ -81,6 +80,11 @@ export const trackWhatsAppClick = async (data: {
         }
         if (responseData.totalRecords) {
           console.log("📊 Total records in database:", responseData.totalRecords)
+        }
+        if (responseData.databaseConnected) {
+          console.log("✅ Data saved to Neon database")
+        } else {
+          console.log("⚠️ Data saved to memory storage (database unavailable)")
         }
       } else {
         console.warn("⚠️ API returned success=false:", responseData)
