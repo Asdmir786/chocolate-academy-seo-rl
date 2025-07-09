@@ -34,6 +34,7 @@ export default function AnalyticsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [dataSource, setDataSource] = useState<string>("unknown")
   const [apiResponse, setApiResponse] = useState<any>(null)
+  const [databaseConnected, setDatabaseConnected] = useState<boolean>(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -90,12 +91,14 @@ export default function AnalyticsPage() {
       console.log("📋 Raw API response data:", data)
       console.log("📊 Data source:", data.source)
       console.log("📊 Total records:", data.totalRecords)
+      console.log("📊 Database connected:", data.databaseConnected)
       console.log("🔍 Type of whatsappClicks:", typeof data.whatsappClicks)
       console.log("🔍 Is whatsappClicks an array?", Array.isArray(data.whatsappClicks))
 
       // Store the full API response for debugging
       setApiResponse(data)
       setDataSource(data.source || "unknown")
+      setDatabaseConnected(data.databaseConnected || false)
 
       if (!data || !Array.isArray(data.whatsappClicks)) {
         console.warn("⚠️ Unexpected data format:", data)
@@ -110,6 +113,7 @@ export default function AnalyticsPage() {
       console.error("❌ Error fetching analytics data:", err)
       setError(err instanceof Error ? err.message : "An unknown error occurred")
       setAnalyticsData([])
+      setDatabaseConnected(false)
     } finally {
       setIsLoading(false)
     }
@@ -232,12 +236,14 @@ export default function AnalyticsPage() {
 
   // Get database status
   const getDatabaseStatus = () => {
-    if (dataSource === "neon_database") {
+    if (databaseConnected && dataSource === "neon_database") {
       return { status: "Connected", color: "text-green-600", icon: CheckCircle }
-    } else if (dataSource === "memory_fallback" || dataSource === "memory_only") {
+    } else if (dataSource === "memory_fallback") {
+      return { status: "Memory Fallback", color: "text-yellow-600", icon: AlertCircle }
+    } else if (dataSource === "memory_only") {
       return { status: "Memory Only", color: "text-yellow-600", icon: AlertCircle }
     } else {
-      return { status: "Unknown", color: "text-red-600", icon: XCircle }
+      return { status: "Disconnected", color: "text-red-600", icon: XCircle }
     }
   }
 
@@ -329,12 +335,20 @@ export default function AnalyticsPage() {
                     <strong>Data Source:</strong> {apiResponse.source}
                   </p>
                   <p>
+                    <strong>Database Connected:</strong> {databaseConnected ? "Yes" : "No"}
+                  </p>
+                  <p>
                     <strong>Total Records:</strong>{" "}
                     {apiResponse.totalRecords || apiResponse.whatsappClicks?.length || 0}
                   </p>
                   {apiResponse.error && (
                     <p>
                       <strong>Error:</strong> {apiResponse.error}
+                    </p>
+                  )}
+                  {apiResponse.message && (
+                    <p>
+                      <strong>Message:</strong> {apiResponse.message}
                     </p>
                   )}
                 </div>

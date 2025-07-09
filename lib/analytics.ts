@@ -35,29 +35,56 @@ export const trackWhatsAppClick = async (data: {
     if (typeof window === "undefined") return // Only run on client side
 
     // Log to console for debugging
-    console.log("Tracking WhatsApp click:", data)
+    console.log("🔄 Starting WhatsApp click tracking:", data)
 
-    // Track the click
+    // Prepare tracking data
+    const trackingData = {
+      productId: data.productId,
+      productName: data.productName,
+      url: window.location.href,
+      city: data.city || "not-specified",
+      source: data.source,
+      buttonLocation: data.buttonLocation,
+      userAgent: navigator.userAgent,
+      phoneNumber: data.phoneNumber,
+      timestamp: new Date().toISOString(),
+    }
+
+    console.log("📡 Sending tracking request to API with data:", trackingData)
+
+    // Track the click with enhanced logging
     const response = await fetch("/api/track-whatsapp", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        productId: data.productId,
-        productName: data.productName,
-        url: window.location.href,
-        city: data.city || "not-specified",
-        source: data.source,
-        buttonLocation: data.buttonLocation,
-        userAgent: navigator.userAgent,
-        phoneNumber: data.phoneNumber,
-      }),
+      body: JSON.stringify(trackingData),
     })
 
+    console.log("📡 API Response status:", response.status)
+    console.log("📡 API Response ok:", response.ok)
+    console.log("📡 API Response headers:", Object.fromEntries(response.headers.entries()))
+
     if (!response.ok) {
-      console.error(`API error: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      console.error(`❌ API error: ${response.status} ${response.statusText}`)
+      console.error("❌ API error details:", errorText)
       // Continue execution even if API fails
+    } else {
+      const responseData = await response.json()
+      console.log("✅ API Response data:", responseData)
+
+      if (responseData.success) {
+        console.log("✅ WhatsApp click tracked successfully!")
+        if (responseData.id) {
+          console.log("✅ Database record ID:", responseData.id)
+        }
+        if (responseData.totalRecords) {
+          console.log("📊 Total records in database:", responseData.totalRecords)
+        }
+      } else {
+        console.warn("⚠️ API returned success=false:", responseData)
+      }
     }
 
     // Use default phone number if none provided
@@ -72,12 +99,14 @@ export const trackWhatsAppClick = async (data: {
     // WhatsApp URL
     const whatsappUrl = `https://wa.me/${formattedPhone}${encodedMessage ? `?text=${encodedMessage}` : ""}`
 
+    console.log("📱 Opening WhatsApp URL:", whatsappUrl)
+
     // Open WhatsApp in a new tab
     window.open(whatsappUrl, "_blank", "noopener,noreferrer")
 
     return { success: true }
   } catch (error) {
-    console.error("Error tracking WhatsApp click:", error)
+    console.error("❌ Error tracking WhatsApp click:", error)
 
     // Even if tracking fails, still open WhatsApp
     try {
@@ -86,9 +115,10 @@ export const trackWhatsAppClick = async (data: {
       const formattedPhone = phoneNumber.replace(/\D/g, "")
       const encodedMessage = data.message ? encodeURIComponent(data.message) : ""
       const whatsappUrl = `https://wa.me/${formattedPhone}${encodedMessage ? `?text=${encodedMessage}` : ""}`
+      console.log("📱 Opening WhatsApp URL (fallback):", whatsappUrl)
       window.open(whatsappUrl, "_blank", "noopener,noreferrer")
     } catch (e) {
-      console.error("Failed to open WhatsApp:", e)
+      console.error("❌ Failed to open WhatsApp:", e)
     }
 
     return { error: true, message: error instanceof Error ? error.message : "Unknown error" }
@@ -110,12 +140,15 @@ export function clearWhatsAppClicks() {
 export const setupWhatsAppTracking = () => {
   if (typeof window === "undefined") return
 
+  console.log("🔄 Setting up WhatsApp tracking...")
+
   // Find all WhatsApp links on the page
   document.addEventListener("click", (event) => {
     const target = event.target as HTMLElement
     const whatsappLink = target.closest('a[href*="wa.me"], a[href*="whatsapp.com"]') as HTMLAnchorElement
 
     if (whatsappLink) {
+      console.log("📱 WhatsApp link clicked:", whatsappLink.href)
       event.preventDefault()
 
       // Extract phone number from the link
@@ -131,6 +164,8 @@ export const setupWhatsAppTracking = () => {
       const source = window.location.pathname
       const buttonLocation = getElementPath(whatsappLink)
 
+      console.log("📱 Extracted data:", { phoneNumber, message, source, buttonLocation })
+
       // Track the click
       trackWhatsAppClick({
         phoneNumber,
@@ -140,6 +175,8 @@ export const setupWhatsAppTracking = () => {
       })
     }
   })
+
+  console.log("✅ WhatsApp tracking setup complete")
 }
 
 // Helper function to get a description of where an element is on the page
