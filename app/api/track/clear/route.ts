@@ -74,3 +74,14 @@ export async function POST() {
     )
   }
 }
+
+export async function GET() {
+  return NextResponse.json({
+    message: "Use POST method to clear all WhatsApp click data",
+    availableEndpoints: {
+      POST: "/api/track/clear - Clear all WhatsApp click data from Neon database",
+      GET: "/api/track-whatsapp - Get all WhatsApp click data from Neon database",
+    },
+    databaseRequired: true,
+  })
+}

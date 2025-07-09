@@ -1,658 +1,303 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, LogOut, Trash2, Database, RefreshCw, CheckCircle, XCircle } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import Header from "@/components/header"
-import Footer from "@/components/footer"
-import type { WhatsAppClickEvent } from "@/lib/analytics"
+import { Badge } from "@/components/ui/badge"
+import { AlertCircle, Database, Trash2, RefreshCw, CheckCircle, XCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+type WhatsAppClickEvent = {
+  productId?: string
+  productName?: string
+  url?: string
+  city?: string
+  source?: string
+  buttonLocation?: string
+  timestamp: string
+  userAgent?: string
+  phoneNumber?: string
+}
+
+type AnalyticsResponse = {
+  whatsappClicks: WhatsAppClickEvent[]
+  source: string
+  totalRecords: number
+  databaseConnected: boolean
+  message?: string
+  error?: string
+  fallback?: boolean
+}
 
 export default function AnalyticsPage() {
-  const [analyticsData, setAnalyticsData] = useState<WhatsAppClickEvent[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isClearing, setIsClearing] = useState(false)
+  const [data, setData] = useState<AnalyticsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState("")
-  const [dateRange, setDateRange] = useState({ start: "", end: "" })
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [databaseConnected, setDatabaseConnected] = useState<boolean>(false)
-  const [apiResponse, setApiResponse] = useState<any>(null)
-  const router = useRouter()
 
-  useEffect(() => {
-    // Check authentication
-    const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
-    const expiresAt = localStorage.getItem("adminAuthExpires")
-    const isExpired = expiresAt ? new Date().getTime() > Number.parseInt(expiresAt) : true
-
-    if (!isAuthenticated || isExpired) {
-      if (isExpired) {
-        localStorage.removeItem("adminAuthenticated")
-        localStorage.removeItem("adminAuthExpires")
-      }
-      router.push("/admin/login")
-    } else {
-      fetchAnalyticsData()
-    }
-  }, [router])
-
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuthenticated")
-    localStorage.removeItem("adminAuthExpires")
-    router.push("/admin/login")
-  }
-
-  const fetchAnalyticsData = async () => {
-    setIsLoading(true)
-    setError(null)
+  const fetchAnalytics = async () => {
     try {
+      setLoading(true)
+      setError(null)
       console.log("🔄 Fetching analytics data from Neon database...")
 
-      const response = await fetch(`/api/track-whatsapp?t=${new Date().getTime()}`)
-      console.log("📡 Analytics API Response status:", response.status)
+      const response = await fetch("/api/track-whatsapp")
+      const result = await response.json()
+
+      console.log("📊 Analytics API response:", result)
+      setData(result)
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error("❌ Analytics API Error:", errorText)
-        throw new Error(`API responded with status: ${response.status} - ${errorText}`)
-      }
-
-      const data = await response.json()
-      console.log("📋 Analytics API response data:", data)
-      console.log("📊 Database connected:", data.databaseConnected)
-      console.log("📊 Total records:", data.totalRecords)
-
-      setApiResponse(data)
-      setDatabaseConnected(data.databaseConnected || false)
-
-      if (!data || !Array.isArray(data.whatsappClicks)) {
-        console.warn("⚠️ Invalid data format received:", data)
-        setAnalyticsData([])
-        setError("Invalid data format received from API")
-      } else {
-        console.log(`✅ Setting analytics data with ${data.whatsappClicks.length} records`)
-        setAnalyticsData(data.whatsappClicks || [])
-        setLastUpdated(new Date())
+        setError(result.error || "Failed to fetch analytics data")
       }
     } catch (err) {
-      console.error("❌ Error fetching analytics data:", err)
-      setError(err instanceof Error ? err.message : "Failed to fetch analytics data")
-      setAnalyticsData([])
-      setDatabaseConnected(false)
+      console.error("❌ Error fetching analytics:", err)
+      setError(err instanceof Error ? err.message : "Unknown error occurred")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const clearAnalyticsData = async () => {
-    setIsClearing(true)
+  const clearData = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to clear all WhatsApp click data from the Neon database? This action cannot be undone.",
+      )
+    ) {
+      return
+    }
+
     try {
-      console.log("🗑️ Clearing analytics data from Neon database...")
+      setClearing(true)
+      console.log("🗑️ Clearing all data from Neon database...")
 
       const response = await fetch("/api/track/clear", {
         method: "POST",
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("❌ Clear API Error:", errorText)
-        throw new Error(`Clear API responded with status: ${response.status} - ${errorText}`)
-      }
-
       const result = await response.json()
-      console.log("✅ Clear operation result:", result)
+      console.log("🗑️ Clear operation result:", result)
 
-      await fetchAnalyticsData()
-      setDialogOpen(false)
-    } catch (err) {
-      console.error("❌ Error clearing analytics data:", err)
-      setError(err instanceof Error ? err.message : "Failed to clear data")
-    } finally {
-      setIsClearing(false)
-    }
-  }
-
-  // Filter data based on search term
-  const filteredData = analyticsData.filter((event) => {
-    if (!filter) return true
-
-    const searchTerm = filter.toLowerCase()
-    return (
-      event.productName?.toLowerCase().includes(searchTerm) ||
-      event.source?.toLowerCase().includes(searchTerm) ||
-      event.city?.toLowerCase().includes(searchTerm) ||
-      event.buttonLocation?.toLowerCase().includes(searchTerm) ||
-      event.url?.toLowerCase().includes(searchTerm)
-    )
-  })
-
-  // Filter by date range
-  const dateFilteredData = filteredData.filter((event) => {
-    if (!dateRange.start && !dateRange.end) return true
-
-    try {
-      const eventDate = new Date(event.timestamp)
-      const startDate = dateRange.start ? new Date(dateRange.start) : new Date(0)
-      const endDate = dateRange.end ? new Date(dateRange.end) : new Date()
-
-      if (dateRange.end) {
-        endDate.setDate(endDate.getDate() + 1)
+      if (response.ok && result.success) {
+        alert(`Successfully cleared ${result.recordsCleared} records from Neon database`)
+        await fetchAnalytics() // Refresh data
+      } else {
+        alert(`Failed to clear data: ${result.error || "Unknown error"}`)
       }
-
-      return eventDate >= startDate && eventDate <= endDate
     } catch (err) {
-      console.error("Date filtering error:", err)
-      return true
-    }
-  })
-
-  // Group data by product
-  const productData = dateFilteredData.reduce((acc: Record<string, number>, event) => {
-    const productName = event.productName || "Unknown Product"
-    acc[productName] = (acc[productName] || 0) + 1
-    return acc
-  }, {})
-
-  const productChartData = Object.entries(productData)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
-
-  // Group data by city
-  const cityData = dateFilteredData.reduce((acc: Record<string, number>, event) => {
-    const city = event.city || "Unknown City"
-    acc[city] = (acc[city] || 0) + 1
-    return acc
-  }, {})
-
-  const cityChartData = Object.entries(cityData)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-
-  // Group data by source
-  const sourceData = dateFilteredData.reduce((acc: Record<string, number>, event) => {
-    const source = event.source || "Unknown Source"
-    acc[source] = (acc[source] || 0) + 1
-    return acc
-  }, {})
-
-  const sourceChartData = Object.entries(sourceData)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date)
-    } catch (err) {
-      console.error("Date formatting error:", err)
-      return "Invalid date"
+      console.error("❌ Error clearing data:", err)
+      alert(`Error clearing data: ${err instanceof Error ? err.message : "Unknown error"}`)
+    } finally {
+      setClearing(false)
     }
   }
 
-  // Get database status - ONLY CONNECTED OR DISCONNECTED
-  const getDatabaseStatus = () => {
-    if (databaseConnected) {
-      return { status: "Connected", color: "text-green-600", icon: CheckCircle }
+  useEffect(() => {
+    fetchAnalytics()
+  }, [])
+
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString()
+  }
+
+  const getStatusBadge = () => {
+    if (!data) return <Badge variant="secondary">Loading...</Badge>
+
+    if (data.databaseConnected && !data.fallback) {
+      return (
+        <Badge variant="default" className="bg-green-500">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Connected to Neon
+        </Badge>
+      )
     } else {
-      return { status: "Disconnected", color: "text-red-600", icon: XCircle }
+      return (
+        <Badge variant="destructive">
+          <XCircle className="w-3 h-3 mr-1" />
+          Database Error
+        </Badge>
+      )
     }
   }
 
-  const dbStatus = getDatabaseStatus()
-  const StatusIcon = dbStatus.icon
+  const getSourceBadge = (source: string) => {
+    if (source === "neon_database") {
+      return (
+        <Badge variant="default" className="bg-blue-500">
+          Neon Database
+        </Badge>
+      )
+    } else {
+      return <Badge variant="destructive">Database Error</Badge>
+    }
+  }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+          <p className="text-muted-foreground">WhatsApp Click Tracking - Neon Database Only</p>
+        </div>
+        <div className="flex items-center gap-2">{getStatusBadge()}</div>
+      </div>
 
-      <main className="flex-1 py-12 bg-[#fdf6f0]">
-        <div className="container mx-auto px-4">
-          <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-[#3c2415] mb-2 flex items-center gap-2">
-                <Database className="h-8 w-8" />
-                WhatsApp Click Analytics - Neon Database
-              </h1>
-              <p className="text-gray-600">
-                Track and analyze WhatsApp button clicks stored in Neon database to understand customer engagement.
-              </p>
-              {lastUpdated && (
-                <p className="text-sm text-gray-500 mt-1">Last updated: {formatDate(lastUpdated.toISOString())}</p>
-              )}
-              <p className="text-sm text-gray-500">
-                Data source: <span className="font-medium">Neon Database Only</span>
-              </p>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? "..." : data?.totalRecords || 0}</div>
+            <p className="text-xs text-muted-foreground">{data?.source && getSourceBadge(data.source)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Database Status</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "..." : data?.databaseConnected ? "Connected" : "Disconnected"}
             </div>
-            <div className="mt-4 md:mt-0 flex gap-2">
-              <Button variant="outline" className="flex items-center gap-2 bg-transparent" onClick={fetchAnalyticsData}>
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </Button>
-              <Button variant="outline" className="flex items-center gap-2 bg-transparent" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive" className="flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Clear All Data
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Clear Analytics Data</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to clear all WhatsApp click analytics data from the Neon database? This
-                      action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="destructive" onClick={clearAnalyticsData} disabled={isClearing}>
-                      {isClearing ? "Clearing..." : "Clear All Data"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
+            <p className="text-xs text-muted-foreground">{data?.message || "Neon Database Connection"}</p>
+          </CardContent>
+        </Card>
 
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Database Error</AlertTitle>
-              <AlertDescription>
-                {error}
-                <div className="mt-2">
-                  <Button variant="outline" size="sm" onClick={fetchAnalyticsData}>
-                    Retry Connection
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Database Status Information */}
-          {apiResponse && (
-            <Alert className="mb-6">
-              <Database className="h-4 w-4" />
-              <AlertTitle>Neon Database Status</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 text-sm">
-                  <p>
-                    <strong>Database Connected:</strong> {databaseConnected ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Total Records:</strong> {apiResponse.totalRecords || 0}
-                  </p>
-                  {apiResponse.message && (
-                    <p>
-                      <strong>Message:</strong> {apiResponse.message}
-                    </p>
-                  )}
-                  {apiResponse.error && (
-                    <p className="text-red-600">
-                      <strong>Error:</strong> {apiResponse.error}
-                    </p>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="mb-8 flex flex-col md:flex-row gap-4 items-end">
-            <div className="w-full md:w-1/3">
-              <Label htmlFor="search" className="text-[#3c2415]">
-                Search
-              </Label>
-              <Input
-                id="search"
-                placeholder="Search by product, source, city, URL..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div className="w-full md:w-1/4">
-              <Label htmlFor="startDate" className="text-[#3c2415]">
-                Start Date
-              </Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div className="w-full md:w-1/4">
-              <Label htmlFor="endDate" className="text-[#3c2415]">
-                End Date
-              </Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <Button onClick={fetchAnalyticsData} className="bg-[#3c2415] hover:bg-[#5a3a28] mt-1">
-              Apply Filters
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-[#3c2415]">Total Clicks</CardTitle>
-                <CardDescription>Total WhatsApp button clicks</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-[#3c2415]">{dateFilteredData.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-[#3c2415]">Top Product</CardTitle>
-                <CardDescription>Most clicked product</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl font-bold text-[#3c2415]">
-                  {productChartData.length > 0 ? productChartData[0].name : "No data"}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {productChartData.length > 0 ? `${productChartData[0].value} clicks` : ""}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-[#3c2415]">Top City</CardTitle>
-                <CardDescription>Most active city</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl font-bold text-[#3c2415] capitalize">
-                  {cityChartData.length > 0 ? cityChartData[0].name : "No data"}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {cityChartData.length > 0 ? `${cityChartData[0].value} clicks` : ""}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-[#3c2415]">Database Status</CardTitle>
-                <CardDescription>Neon Database Connection</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-xl font-bold ${dbStatus.color} flex items-center gap-2`}>
-                  <StatusIcon className="h-5 w-5" />
-                  {dbStatus.status}
-                </div>
-                <div className="text-sm text-gray-500">Neon Database</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="all" className="mb-8">
-            <TabsList className="bg-[#3c2415]/10">
-              <TabsTrigger value="all" className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white">
-                All Data
-              </TabsTrigger>
-              <TabsTrigger value="products" className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white">
-                By Product
-              </TabsTrigger>
-              <TabsTrigger value="cities" className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white">
-                By City
-              </TabsTrigger>
-              <TabsTrigger value="sources" className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white">
-                By Source
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="all" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#3c2415]">All WhatsApp Clicks</CardTitle>
-                  <CardDescription>Detailed list of all WhatsApp button clicks from Neon database</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
-                    </div>
-                  ) : dateFilteredData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No data available in Neon database</p>
-                      <p className="text-sm mt-2">
-                        WhatsApp clicks will appear here once users interact with your site
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date & Time</TableHead>
-                            <TableHead>Product</TableHead>
-                            <TableHead>Source</TableHead>
-                            <TableHead>Location</TableHead>
-                            <TableHead>City</TableHead>
-                            <TableHead>URL</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dateFilteredData.map((event, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{formatDate(event.timestamp)}</TableCell>
-                              <TableCell>{event.productName || "N/A"}</TableCell>
-                              <TableCell>{event.source || "N/A"}</TableCell>
-                              <TableCell>{event.buttonLocation || "N/A"}</TableCell>
-                              <TableCell className="capitalize">{event.city || "N/A"}</TableCell>
-                              <TableCell className="max-w-xs truncate" title={event.url}>
-                                {event.url || "N/A"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="products" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#3c2415]">Clicks by Product</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by product from Neon database</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
-                    </div>
-                  ) : productChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No product data available</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Product</TableHead>
-                            <TableHead>Click Count</TableHead>
-                            <TableHead>Percentage</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {productChartData.map((item, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{item.name}</TableCell>
-                              <TableCell>{item.value}</TableCell>
-                              <TableCell>{((item.value / dateFilteredData.length) * 100).toFixed(1)}%</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="cities" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#3c2415]">Clicks by City</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by city from Neon database</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
-                    </div>
-                  ) : cityChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No city data available</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>City</TableHead>
-                            <TableHead>Click Count</TableHead>
-                            <TableHead>Percentage</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {cityChartData.map((item, index) => (
-                            <TableRow key={index}>
-                              <TableCell className="capitalize">{item.name}</TableCell>
-                              <TableCell>{item.value}</TableCell>
-                              <TableCell>{((item.value / dateFilteredData.length) * 100).toFixed(1)}%</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="sources" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#3c2415]">Clicks by Source</CardTitle>
-                  <CardDescription>Analysis of WhatsApp clicks by page source from Neon database</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3c2415]"></div>
-                    </div>
-                  ) : sourceChartData.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No source data available</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Source</TableHead>
-                            <TableHead>Click Count</TableHead>
-                            <TableHead>Percentage</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sourceChartData.map((item, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{item.name}</TableCell>
-                              <TableCell>{item.value}</TableCell>
-                              <TableCell>{((item.value / dateFilteredData.length) * 100).toFixed(1)}%</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Button onClick={fetchAnalyticsData} className="bg-[#3c2415] hover:bg-[#5a3a28]">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              onClick={fetchAnalytics}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+              className="w-full bg-transparent"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Refresh Data
             </Button>
-
             <Button
-              variant="outline"
-              onClick={() => {
-                // Create CSV content
-                const headers = ["Date", "Product", "Source", "Location", "City", "URL", "User Agent"]
-                const csvContent = [
-                  headers.join(","),
-                  ...dateFilteredData.map((event) =>
-                    [
-                      formatDate(event.timestamp),
-                      `"${event.productName || "N/A"}"`,
-                      `"${event.source || "N/A"}"`,
-                      `"${event.buttonLocation || "N/A"}"`,
-                      `"${event.city || "N/A"}"`,
-                      `"${event.url || "N/A"}"`,
-                      `"${event.userAgent || "N/A"}"`,
-                    ].join(","),
-                  ),
-                ].join("\n")
-
-                // Create download link
-                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-                const url = URL.createObjectURL(blob)
-                const link = document.createElement("a")
-                link.setAttribute("href", url)
-                link.setAttribute("download", `whatsapp-analytics-${new Date().toISOString().split("T")[0]}.csv`)
-                document.body.appendChild(link)
-                link.click()
-                document.body.removeChild(link)
-              }}
+              onClick={clearData}
+              disabled={clearing || loading || !data?.databaseConnected}
+              variant="destructive"
+              size="sm"
+              className="w-full"
             >
-              Export CSV
+              <Trash2 className="h-4 w-4 mr-2" />
+              {clearing ? "Clearing..." : "Clear All Data"}
             </Button>
-          </div>
-        </div>
-      </main>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Footer />
+      <Card>
+        <CardHeader>
+          <CardTitle>WhatsApp Click Events</CardTitle>
+          <CardDescription>Recent WhatsApp button clicks tracked in Neon database</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">Loading data from Neon database...</div>
+          ) : data?.whatsappClicks && data.whatsappClicks.length > 0 ? (
+            <div className="space-y-4">
+              {data.whatsappClicks.map((click, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{click.productName || "Unknown Product"}</div>
+                    <div className="text-sm text-muted-foreground">{formatTimestamp(click.timestamp)}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <div>
+                      <span className="font-medium">City:</span> {click.city || "N/A"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Source:</span> {click.source || "N/A"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Location:</span> {click.buttonLocation || "N/A"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span> {click.phoneNumber || "N/A"}
+                    </div>
+                  </div>
+
+                  {click.url && (
+                    <div className="text-sm">
+                      <span className="font-medium">URL:</span>{" "}
+                      <a
+                        href={click.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline truncate"
+                      >
+                        {click.url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              {data?.error ? (
+                <div>
+                  <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                  <p>Error loading data: {data.error}</p>
+                </div>
+              ) : (
+                <div>
+                  <Database className="h-8 w-8 mx-auto mb-2" />
+                  <p>No WhatsApp clicks recorded yet</p>
+                  <p className="text-sm">Click a WhatsApp button to see tracking data</p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {data && (
+        <Card>
+          <CardHeader>
+            <CardTitle>System Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Data Source:</span> {data.source}
+              </div>
+              <div>
+                <span className="font-medium">Database Connected:</span> {data.databaseConnected ? "Yes" : "No"}
+              </div>
+              <div>
+                <span className="font-medium">Total Records:</span> {data.totalRecords}
+              </div>
+              <div>
+                <span className="font-medium">Fallback Mode:</span> {data.fallback ? "Yes" : "No"}
+              </div>
+            </div>
+            {data.message && (
+              <div className="mt-2 p-2 bg-muted rounded text-sm">
+                <span className="font-medium">Message:</span> {data.message}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
