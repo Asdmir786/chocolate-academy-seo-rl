@@ -54,7 +54,7 @@ export const metadata: Metadata = {
       "Discover the art of fine chocolate making, professional pastry courses, and gourmet chocolate gifts at Chocolate Academy Pakistan. Elevate your skills with expert chefs.",
     images: ["/images/og-image-default.jpg"], // Replace with a high-quality, relevant image for your site
   },
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -68,26 +68,18 @@ export default function RootLayout({
         <link rel="icon" href="/images/favicon.webp" type="image/webp" />
         <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE" />
         <meta name="google-site-verification" content="ivZoh3YSYQomi9mczqzTURYbflQ5EhXfaCjfkY1JdFE" />
-      </head>
-      <body className={inter.className}>
-        <Script src="https://www.googletagmanager.com/gtag/js?id=YOUR_GA_MEASUREMENT_ID" strategy="afterInteractive" />
-        <Script id="google-analytics" strategy="afterInteractive">
+        {/* Google Analytics (GA4) */}
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-50D19VH9C0" strategy="afterInteractive" />
+        <Script id="ga-init" strategy="afterInteractive">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', 'YOUR_GA_MEASUREMENT_ID');
+            gtag('config', 'G-50D19VH9C0');
           `}
         </Script>
-        <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-50D19VH9C0"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-50D19VH9C0');
-</script>
+      </head>
+      <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <TrackingScript />
