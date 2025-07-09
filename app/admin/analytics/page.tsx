@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, LogOut, Trash2, Database, RefreshCw } from "lucide-react"
+import { AlertCircle, LogOut, Trash2, Database, RefreshCw, CheckCircle, XCircle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,8 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState({ start: "", end: "" })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [dataSource, setDataSource] = useState<string>("unknown")
+  const [apiResponse, setApiResponse] = useState<any>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -72,34 +74,40 @@ export default function AnalyticsPage() {
     try {
       // Add a timestamp to prevent caching
       const timestamp = new Date().getTime()
-      console.log("Fetching analytics data from API...")
+      console.log("🔄 Fetching analytics data from API...")
 
       const response = await fetch(`/api/track-whatsapp?t=${timestamp}`)
-      console.log("API Response status:", response.status)
-      console.log("API Response headers:", response.headers)
+      console.log("📡 API Response status:", response.status)
+      console.log("📡 API Response headers:", Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("API Error Response:", errorText)
+        console.error("❌ API Error Response:", errorText)
         throw new Error(`API responded with status: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
-      console.log("Raw API response data:", data)
-      console.log("Type of whatsappClicks:", typeof data.whatsappClicks)
-      console.log("Is whatsappClicks an array?", Array.isArray(data.whatsappClicks))
+      console.log("📋 Raw API response data:", data)
+      console.log("📊 Data source:", data.source)
+      console.log("📊 Total records:", data.totalRecords)
+      console.log("🔍 Type of whatsappClicks:", typeof data.whatsappClicks)
+      console.log("🔍 Is whatsappClicks an array?", Array.isArray(data.whatsappClicks))
+
+      // Store the full API response for debugging
+      setApiResponse(data)
+      setDataSource(data.source || "unknown")
 
       if (!data || !Array.isArray(data.whatsappClicks)) {
-        console.warn("Unexpected data format:", data)
+        console.warn("⚠️ Unexpected data format:", data)
         setAnalyticsData([])
         setError("Received invalid data format from API")
       } else {
-        console.log("Setting analytics data with", data.whatsappClicks.length, "records")
+        console.log(`✅ Setting analytics data with ${data.whatsappClicks.length} records`)
         setAnalyticsData(data.whatsappClicks || [])
         setLastUpdated(new Date())
       }
     } catch (err) {
-      console.error("Error fetching analytics data:", err)
+      console.error("❌ Error fetching analytics data:", err)
       setError(err instanceof Error ? err.message : "An unknown error occurred")
       setAnalyticsData([])
     } finally {
@@ -110,22 +118,26 @@ export default function AnalyticsPage() {
   const clearAnalyticsData = async () => {
     setIsClearing(true)
     try {
+      console.log("🗑️ Attempting to clear analytics data...")
+
       const response = await fetch("/api/track/clear", {
         method: "POST",
       })
 
       if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`)
+        const errorText = await response.text()
+        console.error("❌ Clear API Error:", errorText)
+        throw new Error(`API responded with status: ${response.status} - ${errorText}`)
       }
 
       const result = await response.json()
-      console.log("Clear data result:", result)
+      console.log("✅ Clear data result:", result)
 
       // Refresh the data
       await fetchAnalyticsData()
       setDialogOpen(false)
     } catch (err) {
-      console.error("Error clearing analytics data:", err)
+      console.error("❌ Error clearing analytics data:", err)
       setError(err instanceof Error ? err.message : "Failed to clear data")
     } finally {
       setIsClearing(false)
@@ -218,6 +230,20 @@ export default function AnalyticsPage() {
     }
   }
 
+  // Get database status
+  const getDatabaseStatus = () => {
+    if (dataSource === "neon_database") {
+      return { status: "Connected", color: "text-green-600", icon: CheckCircle }
+    } else if (dataSource === "memory_fallback" || dataSource === "memory_only") {
+      return { status: "Memory Only", color: "text-yellow-600", icon: AlertCircle }
+    } else {
+      return { status: "Unknown", color: "text-red-600", icon: XCircle }
+    }
+  }
+
+  const dbStatus = getDatabaseStatus()
+  const StatusIcon = dbStatus.icon
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -236,6 +262,9 @@ export default function AnalyticsPage() {
               {lastUpdated && (
                 <p className="text-sm text-gray-500 mt-1">Last updated: {formatDate(lastUpdated.toISOString())}</p>
               )}
+              <p className="text-sm text-gray-500">
+                Data source: <span className="font-medium">{dataSource}</span>
+              </p>
             </div>
             <div className="mt-4 md:mt-0 flex gap-2">
               <Button variant="outline" className="flex items-center gap-2 bg-transparent" onClick={fetchAnalyticsData}>
@@ -284,6 +313,30 @@ export default function AnalyticsPage() {
                   <Button variant="outline" size="sm" onClick={fetchAnalyticsData}>
                     Try Again
                   </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Debug Information */}
+          {apiResponse && (
+            <Alert className="mb-6">
+              <Database className="h-4 w-4" />
+              <AlertTitle>Debug Information</AlertTitle>
+              <AlertDescription>
+                <div className="mt-2 text-sm">
+                  <p>
+                    <strong>Data Source:</strong> {apiResponse.source}
+                  </p>
+                  <p>
+                    <strong>Total Records:</strong>{" "}
+                    {apiResponse.totalRecords || apiResponse.whatsappClicks?.length || 0}
+                  </p>
+                  {apiResponse.error && (
+                    <p>
+                      <strong>Error:</strong> {apiResponse.error}
+                    </p>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>
@@ -375,8 +428,9 @@ export default function AnalyticsPage() {
                 <CardDescription>Connection status</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-xl font-bold text-green-600">
-                  {analyticsData.length > 0 ? "Connected" : "No Data"}
+                <div className={`text-xl font-bold ${dbStatus.color} flex items-center gap-2`}>
+                  <StatusIcon className="h-5 w-5" />
+                  {dbStatus.status}
                 </div>
                 <div className="text-sm text-gray-500">Neon Database</div>
               </CardContent>

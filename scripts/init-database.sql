@@ -1,4 +1,4 @@
--- Create the whatsapp_clicks table if it doesn't exist
+-- Initialize WhatsApp clicks tracking table
 CREATE TABLE IF NOT EXISTS whatsapp_clicks (
     id SERIAL PRIMARY KEY,
     product_id VARCHAR(255),
@@ -7,10 +7,10 @@ CREATE TABLE IF NOT EXISTS whatsapp_clicks (
     city VARCHAR(100),
     source VARCHAR(255),
     button_location VARCHAR(255),
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
     user_agent TEXT,
     phone_number VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create indexes for better performance
@@ -19,7 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_product_name ON whatsapp_clicks(p
 CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_city ON whatsapp_clicks(city);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_source ON whatsapp_clicks(source);
 
--- Insert some sample data for testing (optional)
+-- Insert some sample data for testing
 INSERT INTO whatsapp_clicks (
     product_id, 
     product_name, 
@@ -35,8 +35,8 @@ INSERT INTO whatsapp_clicks (
     'Dark Chocolate Truffles', 
     'https://chocolateacademy.com/shop/dark-chocolate-truffles', 
     'karachi', 
-    '/shop', 
-    'product-card', 
+    '/shop/dark-chocolate-truffles', 
+    'product_detail_whatsapp_button',
     NOW() - INTERVAL '2 hours',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 ),
@@ -45,20 +45,20 @@ INSERT INTO whatsapp_clicks (
     'Milk Chocolate Box', 
     'https://chocolateacademy.com/shop/milk-chocolate-box', 
     'lahore', 
-    '/shop', 
-    'product-detail', 
+    '/shop/milk-chocolate-box', 
+    'product_card_whatsapp_button',
     NOW() - INTERVAL '1 hour',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X)'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
 ),
 (
     'prod_003', 
     'Custom Wedding Cake', 
     'https://chocolateacademy.com/shop/custom-wedding-cake', 
     'islamabad', 
-    '/gifting/wedding', 
-    'hero-section', 
+    '/shop/custom-wedding-cake', 
+    'product_detail_whatsapp_button',
     NOW() - INTERVAL '30 minutes',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15'
 );
 
 -- Verify the data was inserted

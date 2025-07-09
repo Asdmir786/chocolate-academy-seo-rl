@@ -7,79 +7,67 @@ let sql: any = null
 try {
   if (process.env.DATABASE_URL) {
     sql = neon(process.env.DATABASE_URL)
+    console.log("✅ Neon database client initialized for clear route")
+  } else {
+    console.error("❌ DATABASE_URL not found in environment variables")
   }
 } catch (error) {
-  console.warn("Neon database not available:", error)
-}
-
-// Initialize Upstash Redis client only if environment variables are available
-let redis: any = null
-
-try {
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const { Redis } = require("@upstash/redis")
-    redis = new Redis({
-      url: process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN,
-    })
-  }
-} catch (error) {
-  console.warn("Upstash Redis not available:", error)
+  console.error("❌ Neon database initialization failed:", error)
 }
 
 export async function POST() {
+  console.log("🗑️ POST /api/track/clear received request")
+
   try {
-    console.log("POST /api/track/clear received request.")
-
-    let clearedFromDatabase = false
-    let clearedFromRedis = false
-
-    // Clear from Neon database first
     if (sql) {
       try {
-        const result = await sql`
-          DELETE FROM whatsapp_clicks
-        `
-        console.log("Successfully cleared WhatsApp clicks from Neon database")
-        clearedFromDatabase = true
+        console.log("🔄 Attempting to clear Neon database...")
+
+        // Get count before clearing
+        const beforeCount = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
+        console.log(`📊 Records before clearing: ${beforeCount[0]?.count || 0}`)
+
+        // Clear all records from the database
+        const result = await sql`DELETE FROM whatsapp_clicks`
+
+        // Get count after clearing
+        const afterCount = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
+        console.log(`📊 Records after clearing: ${afterCount[0]?.count || 0}`)
+
+        console.log("✅ Successfully cleared Neon database")
+
+        return NextResponse.json({
+          success: true,
+          message: "All WhatsApp click data cleared from database",
+          recordsCleared: beforeCount[0]?.count || 0,
+          source: "neon_database",
+        })
       } catch (dbError) {
-        console.error("Error clearing data from database:", dbError)
+        console.error("❌ Database error during clear:", dbError)
+        return NextResponse.json(
+          {
+            error: "Failed to clear database",
+            details: dbError instanceof Error ? dbError.message : "Unknown database error",
+          },
+          { status: 500 },
+        )
       }
-    }
-
-    // Clear from Redis as backup
-    if (redis) {
-      try {
-        await redis.del("whatsappClicks")
-        console.log("Successfully cleared WhatsApp clicks from Redis")
-        clearedFromRedis = true
-      } catch (redisError) {
-        console.error("Error clearing data from Redis:", redisError)
-      }
-    }
-
-    if (clearedFromDatabase || clearedFromRedis) {
-      return NextResponse.json({
-        success: true,
-        message: "Analytics data cleared successfully",
-        clearedFromDatabase,
-        clearedFromRedis,
-      })
     } else {
+      console.log("⚠️ No database available to clear")
       return NextResponse.json(
         {
-          success: false,
-          message: "No storage systems available to clear data from",
+          error: "No database configured",
+          message: "DATABASE_URL not available",
         },
-        { status: 500 },
+        { status: 400 },
       )
     }
   } catch (error) {
-    console.error("Error clearing analytics data:", error)
+    console.error("❌ Error in clear handler:", error)
     return NextResponse.json(
       {
-        success: false,
-        error: "Failed to clear analytics data",
+        error: "Failed to clear data",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
