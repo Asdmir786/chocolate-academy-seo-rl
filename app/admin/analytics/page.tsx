@@ -72,19 +72,29 @@ export default function AnalyticsPage() {
     try {
       // Add a timestamp to prevent caching
       const timestamp = new Date().getTime()
+      console.log("Fetching analytics data from API...")
+
       const response = await fetch(`/api/track-whatsapp?t=${timestamp}`)
+      console.log("API Response status:", response.status)
+      console.log("API Response headers:", response.headers)
 
       if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`)
+        const errorText = await response.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`API responded with status: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
-      console.log("Fetched analytics data:", data)
+      console.log("Raw API response data:", data)
+      console.log("Type of whatsappClicks:", typeof data.whatsappClicks)
+      console.log("Is whatsappClicks an array?", Array.isArray(data.whatsappClicks))
 
       if (!data || !Array.isArray(data.whatsappClicks)) {
         console.warn("Unexpected data format:", data)
         setAnalyticsData([])
+        setError("Received invalid data format from API")
       } else {
+        console.log("Setting analytics data with", data.whatsappClicks.length, "records")
         setAnalyticsData(data.whatsappClicks || [])
         setLastUpdated(new Date())
       }
