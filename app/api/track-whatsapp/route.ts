@@ -18,30 +18,42 @@ export type AnalyticsData = {
   whatsappClicks: WhatsAppClickEvent[]
 }
 
-// Initialize Neon database client - REQUIRED
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required")
+// Validate DATABASE_URL exists - REQUIRED
+function validateDatabaseUrl() {
+  if (!process.env.DATABASE_URL) {
+    console.error("❌ DATABASE_URL environment variable is not configured")
+    console.error("❌ Please set DATABASE_URL in your environment variables")
+    throw new Error("DATABASE_URL environment variable is required for Neon database connection")
+  }
+  console.log("✅ DATABASE_URL found in environment variables")
+  return process.env.DATABASE_URL
 }
 
-const sql = neon(process.env.DATABASE_URL)
+// Initialize Neon database client
+const getDatabaseClient = () => {
+  const databaseUrl = validateDatabaseUrl()
+  return neon(databaseUrl)
+}
 
 // Test database connection
 async function testDatabaseConnection() {
   try {
     console.log("🔄 Testing Neon database connection...")
+    const sql = getDatabaseClient()
     const result = await sql`SELECT NOW() as current_time, version() as db_version`
-    console.log("✅ Database connection successful:", result[0])
+    console.log("✅ Neon database connection successful:", result[0])
     return true
   } catch (error) {
-    console.error("❌ Database connection failed:", error)
-    throw new Error(`Database connection failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+    console.error("❌ Neon database connection failed:", error)
+    throw new Error(`Neon database connection failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
 // Initialize database table
 async function initializeDatabase() {
   try {
-    console.log("🔄 Initializing whatsapp_clicks table...")
+    console.log("🔄 Initializing whatsapp_clicks table in Neon database...")
+    const sql = getDatabaseClient()
 
     // Create table if it doesn't exist
     await sql`
@@ -60,7 +72,7 @@ async function initializeDatabase() {
       )
     `
 
-    console.log("✅ Table whatsapp_clicks created/verified successfully")
+    console.log("✅ Table whatsapp_clicks created/verified in Neon database")
 
     // Create indexes for better performance
     await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_timestamp ON whatsapp_clicks(timestamp)`
@@ -68,23 +80,26 @@ async function initializeDatabase() {
     await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_city ON whatsapp_clicks(city)`
     await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_source ON whatsapp_clicks(source)`
 
-    console.log("✅ Database indexes created successfully")
+    console.log("✅ Database indexes created in Neon database")
 
     // Check current record count
     const count = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
-    console.log(`📊 Current records in whatsapp_clicks table: ${count[0]?.count || 0}`)
+    console.log(`📊 Current records in Neon whatsapp_clicks table: ${count[0]?.count || 0}`)
 
     return true
   } catch (error) {
-    console.error("❌ Database initialization failed:", error)
-    throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+    console.error("❌ Neon database initialization failed:", error)
+    throw new Error(`Neon database initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
 export async function POST(request: Request) {
-  console.log("📥 POST /api/track-whatsapp - Processing WhatsApp click tracking")
+  console.log("📥 POST /api/track-whatsapp - Processing WhatsApp click tracking (NEON DATABASE ONLY)")
 
   try {
+    // Validate DATABASE_URL first
+    validateDatabaseUrl()
+
     // Parse request body
     const body = await request.json()
     console.log("📋 Received tracking data:", JSON.stringify(body, null, 2))
@@ -108,7 +123,7 @@ export async function POST(request: Request) {
       phoneNumber: body.phoneNumber || null,
     }
 
-    console.log("📝 Prepared event for database:", JSON.stringify(event, null, 2))
+    console.log("📝 Prepared event for Neon database:", JSON.stringify(event, null, 2))
 
     // Test database connection
     await testDatabaseConnection()
@@ -116,8 +131,11 @@ export async function POST(request: Request) {
     // Initialize database if needed
     await initializeDatabase()
 
+    // Get database client
+    const sql = getDatabaseClient()
+
     // Insert the record into Neon database
-    console.log("🔄 Inserting record into whatsapp_clicks table...")
+    console.log("🔄 Inserting record into Neon whatsapp_clicks table...")
     const insertResult = await sql`
       INSERT INTO whatsapp_clicks (
         product_id, 
@@ -147,14 +165,14 @@ export async function POST(request: Request) {
 
     // Verify the insert by counting total records
     const verifyCount = await sql`SELECT COUNT(*) as count FROM whatsapp_clicks`
-    console.log(`📊 Total records after insert: ${verifyCount[0]?.count || 0}`)
+    console.log(`📊 Total records in Neon database after insert: ${verifyCount[0]?.count || 0}`)
 
     // Get the inserted record to verify data integrity
     const insertedRecord = await sql`
       SELECT * FROM whatsapp_clicks 
       WHERE id = ${insertResult[0]?.id}
     `
-    console.log("🔍 Inserted record verification:", insertedRecord[0])
+    console.log("🔍 Inserted record verification from Neon:", insertedRecord[0])
 
     return NextResponse.json({
       success: true,
@@ -165,17 +183,20 @@ export async function POST(request: Request) {
       insertedRecord: insertedRecord[0],
       databaseConnected: true,
       source: "neon_database",
+      fallback: false, // NO FALLBACK - NEON ONLY
     })
   } catch (error) {
-    console.error("❌ Failed to save WhatsApp click to database:", error)
+    console.error("❌ Failed to save WhatsApp click to Neon database:", error)
 
-    // Return error - no fallback to memory
+    // Return error - NO FALLBACK TO MEMORY
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to save to database",
+        error: "Failed to save to Neon database",
         details: error instanceof Error ? error.message : "Unknown database error",
         databaseConnected: false,
+        source: "neon_database_error",
+        fallback: false, // NO FALLBACK
       },
       { status: 500 },
     )
@@ -183,17 +204,23 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  console.log("📤 GET /api/track-whatsapp - Retrieving WhatsApp click data from Neon database")
+  console.log("📤 GET /api/track-whatsapp - Retrieving WhatsApp click data from Neon database ONLY")
 
   try {
+    // Validate DATABASE_URL first
+    validateDatabaseUrl()
+
     // Test database connection
     await testDatabaseConnection()
 
     // Initialize database if needed
     await initializeDatabase()
 
+    // Get database client
+    const sql = getDatabaseClient()
+
     // Fetch all records from Neon database
-    console.log("🔄 Fetching records from whatsapp_clicks table...")
+    console.log("🔄 Fetching records from Neon whatsapp_clicks table...")
     const results = await sql`
       SELECT 
         id,
@@ -214,7 +241,7 @@ export async function GET() {
 
     console.log(`📋 Retrieved ${results.length} records from Neon database`)
     if (results.length > 0) {
-      console.log("📋 Sample record:", results[0])
+      console.log("📋 Sample record from Neon:", results[0])
     }
 
     // Map database results to expected format
@@ -238,19 +265,21 @@ export async function GET() {
       totalRecords: mappedResults.length,
       databaseConnected: true,
       message: "Data successfully retrieved from Neon database",
+      fallback: false, // NO FALLBACK - NEON ONLY
     })
   } catch (error) {
     console.error("❌ Failed to retrieve data from Neon database:", error)
 
-    // Return error - no fallback to memory
+    // Return error - NO FALLBACK TO MEMORY
     return NextResponse.json(
       {
         whatsappClicks: [],
-        error: "Failed to retrieve data from database",
+        error: "Failed to retrieve data from Neon database",
         details: error instanceof Error ? error.message : "Unknown database error",
         databaseConnected: false,
         totalRecords: 0,
-        source: "database_error",
+        source: "neon_database_error",
+        fallback: false, // NO FALLBACK
       },
       { status: 500 },
     )

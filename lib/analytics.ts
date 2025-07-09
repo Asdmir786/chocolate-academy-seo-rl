@@ -1,4 +1,4 @@
-// Analytics tracking for WhatsApp clicks - DATABASE ONLY
+// Analytics tracking for WhatsApp clicks - NEON DATABASE ONLY
 export type WhatsAppClickEvent = {
   productId?: string
   productName?: string
@@ -18,7 +18,7 @@ export type AnalyticsData = {
 // Default WhatsApp number
 const DEFAULT_WHATSAPP_NUMBER = "923093336142"
 
-// Main tracking function - DATABASE ONLY
+// Main tracking function - NEON DATABASE ONLY
 export const trackWhatsAppClick = async (data: {
   productId?: string
   productName?: string
@@ -31,7 +31,7 @@ export const trackWhatsAppClick = async (data: {
   try {
     if (typeof window === "undefined") return
 
-    console.log("🔄 Starting WhatsApp click tracking (DATABASE ONLY):", data)
+    console.log("🔄 Starting WhatsApp click tracking (NEON DATABASE ONLY):", data)
 
     // Prepare tracking data for Neon database
     const trackingData = {
@@ -48,7 +48,7 @@ export const trackWhatsAppClick = async (data: {
 
     console.log("📡 Sending tracking request to Neon database API:", trackingData)
 
-    // Send to database API
+    // Send to Neon database API
     const response = await fetch("/api/track-whatsapp", {
       method: "POST",
       headers: {
@@ -57,48 +57,49 @@ export const trackWhatsAppClick = async (data: {
       body: JSON.stringify(trackingData),
     })
 
-    console.log("📡 Database API Response status:", response.status)
-    console.log("📡 Database API Response ok:", response.ok)
+    console.log("📡 Neon Database API Response status:", response.status)
+    console.log("📡 Neon Database API Response ok:", response.ok)
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Database API error: ${response.status} ${response.statusText}`)
-      console.error("❌ Database API error response:", errorText)
-      throw new Error(`Database API failed: ${response.status} - ${errorText}`)
+      console.error(`❌ Neon Database API error: ${response.status} ${response.statusText}`)
+      console.error("❌ Neon Database API error response:", errorText)
+      throw new Error(`Neon Database API failed: ${response.status} - ${errorText}`)
     }
 
     const responseData = await response.json()
-    console.log("✅ Database API Response data:", responseData)
+    console.log("✅ Neon Database API Response data:", responseData)
 
-    if (responseData.success && responseData.databaseConnected) {
+    // Check if data was saved to Neon database (NO FALLBACK ALLOWED)
+    if (responseData.success && responseData.databaseConnected && !responseData.fallback) {
       console.log("✅ WhatsApp click successfully saved to Neon database!")
-      console.log("✅ Database record ID:", responseData.id)
+      console.log("✅ Neon Database record ID:", responseData.id)
       console.log("📊 Total records in Neon database:", responseData.totalRecords)
     } else {
-      console.error("❌ Database save failed:", responseData)
-      throw new Error(responseData.error || "Database save failed")
+      console.error("❌ Neon Database save failed or fallback detected:", responseData)
+      throw new Error(responseData.error || "Neon Database save failed or fallback detected")
     }
 
-    // Open WhatsApp after successful database save
+    // Open WhatsApp after successful Neon database save
     const phoneNumber = data.phoneNumber || DEFAULT_WHATSAPP_NUMBER
     const formattedPhone = phoneNumber.replace(/\D/g, "")
     const encodedMessage = data.message ? encodeURIComponent(data.message) : ""
     const whatsappUrl = `https://wa.me/${formattedPhone}${encodedMessage ? `?text=${encodedMessage}` : ""}`
 
-    console.log("📱 Opening WhatsApp URL:", whatsappUrl)
+    console.log("📱 Opening WhatsApp URL after Neon database save:", whatsappUrl)
     window.open(whatsappUrl, "_blank", "noopener,noreferrer")
 
-    return { success: true, databaseConnected: true }
+    return { success: true, databaseConnected: true, fallback: false }
   } catch (error) {
-    console.error("❌ WhatsApp click tracking failed:", error)
+    console.error("❌ WhatsApp click tracking failed (Neon database error):", error)
 
-    // Still open WhatsApp even if tracking fails
+    // Still open WhatsApp even if Neon database tracking fails
     try {
       const phoneNumber = data.phoneNumber || DEFAULT_WHATSAPP_NUMBER
       const formattedPhone = phoneNumber.replace(/\D/g, "")
       const encodedMessage = data.message ? encodeURIComponent(data.message) : ""
       const whatsappUrl = `https://wa.me/${formattedPhone}${encodedMessage ? `?text=${encodedMessage}` : ""}`
-      console.log("📱 Opening WhatsApp URL (after tracking error):", whatsappUrl)
+      console.log("📱 Opening WhatsApp URL (after Neon database tracking error):", whatsappUrl)
       window.open(whatsappUrl, "_blank", "noopener,noreferrer")
     } catch (e) {
       console.error("❌ Failed to open WhatsApp:", e)
@@ -108,15 +109,16 @@ export const trackWhatsAppClick = async (data: {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
       databaseConnected: false,
+      fallback: false, // NO FALLBACK
     }
   }
 }
 
-// Setup automatic WhatsApp link tracking
+// Setup automatic WhatsApp link tracking - NEON DATABASE ONLY
 export const setupWhatsAppTracking = () => {
   if (typeof window === "undefined") return
 
-  console.log("🔄 Setting up WhatsApp tracking (DATABASE ONLY)...")
+  console.log("🔄 Setting up WhatsApp tracking (NEON DATABASE ONLY)...")
 
   document.addEventListener("click", (event) => {
     const target = event.target as HTMLElement
@@ -139,9 +141,9 @@ export const setupWhatsAppTracking = () => {
       const source = window.location.pathname
       const buttonLocation = getElementPath(whatsappLink)
 
-      console.log("📱 Extracted WhatsApp data:", { phoneNumber, message, source, buttonLocation })
+      console.log("📱 Extracted WhatsApp data for Neon database:", { phoneNumber, message, source, buttonLocation })
 
-      // Track the click in Neon database
+      // Track the click in Neon database ONLY
       trackWhatsAppClick({
         phoneNumber,
         message,
@@ -151,7 +153,7 @@ export const setupWhatsAppTracking = () => {
     }
   })
 
-  console.log("✅ WhatsApp tracking setup complete (DATABASE ONLY)")
+  console.log("✅ WhatsApp tracking setup complete (NEON DATABASE ONLY)")
 }
 
 // Helper function to get element path
