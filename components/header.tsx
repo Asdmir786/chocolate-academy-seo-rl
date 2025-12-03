@@ -30,6 +30,7 @@ export default function HomeHeader() {
     },
     { name: "CONTACT US", href: "/contact" },
     { name: "GALLERY", href: "/gallery" },
+    { name: "NEWSLETTER", href: "/newsletter" },
   ]
 
   /* ───────────────────────── scroll - aware header ───────────────────────── */
