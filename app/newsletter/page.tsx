@@ -19,52 +19,59 @@ const AVAILABLE_PDFS: Record<string, { path: string; downloadName: string }> = {
   },
 }
 
-// Generate months for the current year and previous year
-const getMonths = () => {
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ]
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+]
 
+// Generate months for the current year and previous year, sorted newest → oldest
+const getMonths = () => {
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
-  const currentMonth = currentDate.getMonth()
+  const currentMonth = currentDate.getMonth() // 0-indexed
 
   const monthList: Array<{ month: string; year: number; filename: string }> = []
 
-  // Add current year months up to current month
+  // Current year months up to and including current month
   for (let i = 0; i <= currentMonth; i++) {
     monthList.push({
-      month: months[i],
+      month: MONTH_NAMES[i],
       year: currentYear,
-      filename: `${months[i].toLowerCase()}-${currentYear}.pdf`,
+      filename: `${MONTH_NAMES[i].toLowerCase()}-${currentYear}.pdf`,
     })
   }
 
-  // Add previous year months
+  // Previous year months for the remaining months
   for (let i = currentMonth + 1; i < 12; i++) {
     monthList.push({
-      month: months[i],
+      month: MONTH_NAMES[i],
       year: currentYear - 1,
-      filename: `${months[i].toLowerCase()}-${currentYear - 1}.pdf`,
+      filename: `${MONTH_NAMES[i].toLowerCase()}-${currentYear - 1}.pdf`,
     })
   }
 
-  return monthList.reverse() // Most recent first
+  // Sort newest first: compare year desc, then month index desc
+  monthList.sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year
+    return MONTH_NAMES.indexOf(b.month) - MONTH_NAMES.indexOf(a.month)
+  })
+
+  return monthList
+}
+
+// Determine the single most-recent available newsletter key
+const getLatestAvailableKey = () => {
+  return Object.keys(AVAILABLE_PDFS).sort((a, b) => {
+    const [aMonth, aYear] = a.split("-")
+    const [bMonth, bYear] = b.split("-")
+    if (Number(bYear) !== Number(aYear)) return Number(bYear) - Number(aYear)
+    return MONTH_NAMES.indexOf(bMonth) - MONTH_NAMES.indexOf(aMonth)
+  })[0] ?? null
 }
 
 export default function NewsletterPage() {
   const months = getMonths()
+  const latestKey = getLatestAvailableKey()
 
   const handleDownload = (month: string, year: number) => {
     const key = `${month}-${year}`
@@ -132,6 +139,7 @@ export default function NewsletterPage() {
             {months.map(({ month, year, filename }) => {
               const key = `${month}-${year}`
               const isAvailable = key in AVAILABLE_PDFS
+              const isLatest = key === latestKey
               return (
               <button
                 key={key}
@@ -143,6 +151,12 @@ export default function NewsletterPage() {
                     : "opacity-50 cursor-not-allowed"
                 }`}
               >
+                {/* "New" banner ribbon */}
+                {isLatest && (
+                  <div className="absolute top-3 right-[-28px] z-20 rotate-45 bg-amber-500 text-white text-[10px] font-bold px-8 py-0.5 shadow-sm tracking-wider uppercase">
+                    New
+                  </div>
+                )}
                 {/* Background pattern */}
                 <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity">
                   <div
