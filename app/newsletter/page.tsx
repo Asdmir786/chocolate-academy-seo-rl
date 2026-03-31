@@ -7,6 +7,18 @@ import Header from "@/components/header"
 import Footer from "@/components/footer"
 import { Button } from "@/components/ui/button"
 
+// Map of available newsletter PDFs keyed by "Month-Year"
+const AVAILABLE_PDFS: Record<string, { path: string; downloadName: string }> = {
+  "December-2025": {
+    path: "/images/pdfs/CA Journel Final.pdf",
+    downloadName: "CA-Journal-December-2025.pdf",
+  },
+  "March-2026": {
+    path: "/images/pdfs/CA-Journal-March-2026.pdf",
+    downloadName: "CA-Journal-March-2026.pdf",
+  },
+}
+
 // Generate months for the current year and previous year
 const getMonths = () => {
   const months = [
@@ -54,17 +66,14 @@ const getMonths = () => {
 export default function NewsletterPage() {
   const months = getMonths()
 
-  const handleDownload = (filename: string, month: string, year: number) => {
-    // Only download PDF for December
-    if (month !== "December") {
-      return
-    }
-    
-    // Download the PDF for December
-    const pdfPath = `/images/pdfs/CA Journel Final.pdf`
+  const handleDownload = (month: string, year: number) => {
+    const key = `${month}-${year}`
+    const pdf = AVAILABLE_PDFS[key]
+    if (!pdf) return
+
     const link = document.createElement("a")
-    link.href = pdfPath
-    link.download = "CA Journal Final.pdf"
+    link.href = pdf.path
+    link.download = pdf.downloadName
     link.target = "_blank"
     document.body.appendChild(link)
     link.click()
@@ -121,14 +130,15 @@ export default function NewsletterPage() {
           {/* Month Buttons Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto">
             {months.map(({ month, year, filename }) => {
-              const isDecember = month === "December"
+              const key = `${month}-${year}`
+              const isAvailable = key in AVAILABLE_PDFS
               return (
               <button
-                key={`${month}-${year}`}
-                onClick={() => handleDownload(filename, month, year)}
-                disabled={!isDecember}
+                key={key}
+                onClick={() => handleDownload(month, year)}
+                disabled={!isAvailable}
                 className={`group relative bg-white rounded-lg p-4 sm:p-5 md:p-6 shadow-md transition-all duration-300 border-2 overflow-hidden ${
-                  isDecember
+                  isAvailable
                     ? "hover:shadow-xl border-transparent hover:border-amber-400 active:scale-95 cursor-pointer"
                     : "opacity-50 cursor-not-allowed"
                 }`}
@@ -158,8 +168,8 @@ export default function NewsletterPage() {
                   </div>
                 </div>
 
-                {/* Hover effect overlay - only for December */}
-                {isDecember && (
+                {/* Hover effect overlay */}
+                {isAvailable && (
                   <div className="absolute bottom-0 left-0 w-full h-0 bg-gradient-to-t from-[#3c2415] to-transparent group-hover:h-full transition-all duration-300 opacity-10" />
                 )}
               </button>
