@@ -79,7 +79,7 @@ export default function ContactPage() {
     {
       name: "DHA",
       address: "2nd Floor CSD Shopping Mall Cavalry Ground, Lahore",
-      phone: "0309-3336142",
+      phone: "0321 1119277",
       geo: { latitude: 31.5053049, longitude: 74.3329249 }, // Same as Lahore main campus for simplicity
     },
   ]
