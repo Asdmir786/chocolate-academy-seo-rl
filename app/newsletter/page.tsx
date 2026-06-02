@@ -17,6 +17,10 @@ const AVAILABLE_PDFS: Record<string, { path: string; downloadName: string }> = {
     path: "/images/pdfs/CA-Journal-March-2026.pdf",
     downloadName: "CA-Journal-March-2026.pdf",
   },
+  "April-2026": {
+    path: "/images/pdfs/CA-Journal-April-2026.pdf",
+    downloadName: "CA-Journal-April-2026.pdf",
+  },
 }
 
 const MONTH_NAMES = [
