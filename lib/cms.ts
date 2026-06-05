@@ -435,6 +435,179 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 }
 
+// ---------- Commerce / Prospective Sales analytics ----------
+// Estimated order value per conversation = catalog price of the product, or
+// the course fee, attributed to each WhatsApp click. General page inquiries
+// carry no catalog value (0) but are still counted as conversations/leads.
+export type CommerceWindow = {
+  key: string
+  label: string
+  conversations: number
+  value: number
+}
+
+export type CommerceStats = {
+  windows: CommerceWindow[]
+  totals: {
+    conversations: number
+    value: number
+    valuedConversations: number
+    avgOrderValue: number
+  }
+  salesTrend: { month: string; value: number; conversations: number }[]
+  topProductsByValue: { name: string; conversations: number; value: number }[]
+  topCitiesByValue: { city: string; conversations: number; value: number }[]
+  topProductThisMonth: { name: string; conversations: number; value: number } | null
+}
+
+export async function getCommerceStats(): Promise<CommerceStats> {
+  await ensureSchema()
+
+  // Reusable: a valued view of clicks (estimated order value per conversation)
+  const [windowRow, totalsRow, salesTrend, topProductsByValue, topCitiesByValue, topProductThisMonth] =
+    await Promise.all([
+      sql`
+        WITH cv AS (
+          SELECT wc.timestamp,
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )::numeric AS value
+          FROM whatsapp_clicks wc
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '1 day')::int   AS c_today,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '1 day'),0)::bigint   AS v_today,
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '7 days')::int  AS c_week,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '7 days'),0)::bigint  AS v_week,
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '30 days')::int AS c_month,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '30 days'),0)::bigint AS v_month,
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '90 days')::int AS c_q,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '90 days'),0)::bigint AS v_q,
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '180 days')::int AS c_h,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '180 days'),0)::bigint AS v_h,
+          COUNT(*) FILTER (WHERE timestamp >= NOW() - INTERVAL '365 days')::int AS c_y,
+          COALESCE(SUM(value) FILTER (WHERE timestamp >= NOW() - INTERVAL '365 days'),0)::bigint AS v_y
+        FROM cv
+      `,
+      sql`
+        WITH cv AS (
+          SELECT
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )::numeric AS value
+          FROM whatsapp_clicks wc
+        )
+        SELECT
+          COUNT(*)::int AS conversations,
+          COALESCE(SUM(value),0)::bigint AS value,
+          COUNT(*) FILTER (WHERE value > 0)::int AS valued_conversations
+        FROM cv
+      `,
+      sql`
+        WITH cv AS (
+          SELECT wc.timestamp,
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )::numeric AS value
+          FROM whatsapp_clicks wc
+          WHERE wc.timestamp >= DATE_TRUNC('month', NOW()) - INTERVAL '11 months'
+        )
+        SELECT TO_CHAR(DATE_TRUNC('month', timestamp), 'YYYY-MM') AS month,
+          COALESCE(SUM(value),0)::bigint AS value,
+          COUNT(*)::int AS conversations
+        FROM cv GROUP BY 1 ORDER BY 1
+      `,
+      sql`
+        SELECT wc.product_name AS name,
+          COUNT(*)::int AS conversations,
+          COALESCE(SUM(
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )
+          ),0)::bigint AS value
+        FROM whatsapp_clicks wc
+        WHERE wc.timestamp >= NOW() - INTERVAL '30 days'
+        GROUP BY wc.product_name
+        HAVING COALESCE(SUM(
+          COALESCE(
+            (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+            (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+            (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+            0
+          )
+        ),0) > 0
+        ORDER BY value DESC LIMIT 8
+      `,
+      sql`
+        SELECT wc.city AS city,
+          COUNT(*)::int AS conversations,
+          COALESCE(SUM(
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )
+          ),0)::bigint AS value
+        FROM whatsapp_clicks wc
+        GROUP BY wc.city ORDER BY conversations DESC LIMIT 8
+      `,
+      sql`
+        SELECT wc.product_name AS name, COUNT(*)::int AS conversations,
+          COALESCE(SUM(
+            COALESCE(
+              (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
+              (SELECT p.price FROM products p WHERE p.name = wc.product_name),
+              (SELECT c.fee FROM courses c WHERE c.title = wc.product_name),
+              0
+            )
+          ),0)::bigint AS value
+        FROM whatsapp_clicks wc
+        WHERE wc.timestamp >= NOW() - INTERVAL '30 days'
+          AND EXISTS (SELECT 1 FROM products p WHERE p.name = wc.product_name)
+        GROUP BY wc.product_name ORDER BY conversations DESC LIMIT 1
+      `,
+    ])
+
+  const w = windowRow[0] as Record<string, number>
+  const t = totalsRow[0] as Record<string, number>
+  const windows: CommerceWindow[] = [
+    { key: "today", label: "Today", conversations: w.c_today, value: Number(w.v_today) },
+    { key: "week", label: "This Week", conversations: w.c_week, value: Number(w.v_week) },
+    { key: "month", label: "This Month", conversations: w.c_month, value: Number(w.v_month) },
+    { key: "quarter", label: "3 Months", conversations: w.c_q, value: Number(w.v_q) },
+    { key: "half", label: "6 Months", conversations: w.c_h, value: Number(w.v_h) },
+    { key: "year", label: "1 Year", conversations: w.c_y, value: Number(w.v_y) },
+  ]
+  const valued = Number(t.valued_conversations) || 0
+  const value = Number(t.value) || 0
+  return {
+    windows,
+    totals: {
+      conversations: Number(t.conversations) || 0,
+      value,
+      valuedConversations: valued,
+      avgOrderValue: valued ? Math.round(value / valued) : 0,
+    },
+    salesTrend: salesTrend as { month: string; value: number; conversations: number }[],
+    topProductsByValue: topProductsByValue as { name: string; conversations: number; value: number }[],
+    topCitiesByValue: topCitiesByValue as { city: string; conversations: number; value: number }[],
+    topProductThisMonth: (topProductThisMonth[0] as { name: string; conversations: number; value: number }) ?? null,
+  }
+}
+
 // ---------- Mappers (DB -> legacy public component shapes) ----------
 export type PublicProduct = {
   id: number
