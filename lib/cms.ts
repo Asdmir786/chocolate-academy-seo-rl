@@ -435,6 +435,43 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 }
 
+// ---------- Mappers (DB -> legacy public component shapes) ----------
+export type PublicProduct = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  price: number
+  image: string
+  category: string
+  rating: number
+  isNew: boolean
+  featured: boolean
+  discount: number
+  sku: string
+  weight?: string
+  city_slugs: string[]
+}
+
+export function toPublicProduct(p: CmsProduct): PublicProduct {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description,
+    price: Number(p.price),
+    image: p.image || "/placeholder.svg",
+    category: p.category,
+    rating: p.rating ?? 5,
+    isNew: p.is_new,
+    featured: p.featured,
+    discount: p.discount ?? 0,
+    sku: p.sku ?? "",
+    weight: p.weight ?? undefined,
+    city_slugs: p.city_slugs ?? [],
+  }
+}
+
 // ---------- Utils ----------
 export function slugify(input: string): string {
   return input

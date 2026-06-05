@@ -3,9 +3,11 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
-import ProductCard from "@/components/product-card"
-import { products } from "@/lib/products"
+import ProductCard, { type CityOption } from "@/components/product-card"
+import { getProducts, getCities, toPublicProduct } from "@/lib/cms"
 import type { Metadata } from "next"
+
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Shop Our Products",
@@ -37,7 +39,21 @@ export const metadata: Metadata = {
   },
 }
 
-export default function ShopPage() {
+export default async function ShopPage() {
+  const [cmsProducts, cmsCities] = await Promise.all([getProducts(true), getCities(true)])
+  const products = cmsProducts.map(toPublicProduct)
+  const allCities: CityOption[] = cmsCities.map((c) => ({
+    name: c.name,
+    slug: c.slug,
+    whatsapp_number: c.whatsapp_number,
+  }))
+
+  const citiesForProduct = (citySlugs: string[]): CityOption[] => {
+    if (!citySlugs || citySlugs.length === 0) return allCities
+    const filtered = allCities.filter((c) => citySlugs.includes(c.slug))
+    return filtered.length > 0 ? filtered : allCities
+  }
+
   // Group products by category
   const productsByCategory = products.reduce(
     (acc, product) => {
@@ -119,7 +135,11 @@ export default function ShopPage() {
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {productsByCategory[category].map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        cities={citiesForProduct(product.city_slugs)}
+                      />
                     ))}
                   </div>
                 </div>

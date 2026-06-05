@@ -4,7 +4,10 @@ import { ChevronRight } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 import { Button } from "@/components/ui/button"
+import { getCourses } from "@/lib/cms"
 import type { Metadata } from "next"
+
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Intensive Programs",
@@ -36,44 +39,20 @@ export const metadata: Metadata = {
   },
 }
 
-// Program data
-const programs = [
-  {
-    id: "cake-decoration",
-    title: "Cake Decoration & Fondant Art",
-    description:
-      "This 04-week premium Cake decoration and fondant art course will equip you with the knowledge and tools to slay any designer cake project your client demand. Master the art of making incredible cakes with a distinctive approach in a one-of-its-kind learning institute.",
-    image: "/images/courses/cake-decor.webp",
-    duration: "1 month",
-    level: "Beginner to Advanced",
-    certification: "International Chocolate Academy",
-    charges: "PKR 75,000",
-  },
-  {
-    id: "grand-diplome-en-chocolat-et-pattisserie",
-    title: "Grand Diplome en Chocolat Et Pattisserie",
-    description:
-      "A comprehensive 4-month program covering everything from theory and techniques to advanced chocolate mastery and entrepreneurship. This intensive course includes 14 core modules and complementary business classes, preparing you for a successful career in the culinary arts industry.",
-    image: "/images/courses/choc.webp",
-    duration: "4 months",
-    level: "Professional",
-    certification: "GPDP, TYPSY AUSTRALIA, ICM UK, INTERNATIONAL CHOCOLATE ACADEMY, HIGHFIELD UK",
-    charges: "PKR 425,000",
-  },
-  {
-    id: "grand-diploma-culinary",
-    title: "Grand Diplome en Culinary & Finishing Arts",
-    description:
-      "A comprehensive 16-week program covering essential culinary techniques, international cuisines, and professional finishing arts. This intensive course includes 15 core modules and complementary business classes, preparing you for a successful career in the culinary arts industry.",
-    image: "/images/courses/cul.webp",
-    duration: "16 weeks",
-    level: "Professional",
-    certification: "GPDP, TYPSY AUSTRALIA, ICM UK, INTERNATIONAL CHOCOLATE ACADEMY, HIGHFIELD UK",
-    charges: "PKR 450,000",
-  },
-]
+export default async function IntensiveProgramsPage() {
+  const cmsCourses = await getCourses(true)
+  const programs = cmsCourses.map((c) => ({
+    id: c.slug,
+    title: c.title,
+    description: c.description,
+    image: c.image || "/placeholder.svg",
+    duration: c.duration,
+    level: c.level,
+    certification: c.certification,
+    charges: c.fee ? `PKR ${Number(c.fee).toLocaleString()}` : "",
+    highlights: c.highlights ?? [],
+  }))
 
-export default function IntensiveProgramsPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -169,14 +148,20 @@ export default function IntensiveProgramsPage() {
                   <div className="bg-white rounded-xl shadow p-6 my-6">
                     <h3 className="font-bold text-lg mb-4 text-[#3c2415]">Program Highlights:</h3>
                     <ul className="space-y-2">
-                      {[
-                        "Hands-on practical training",
-                        "Small batch sizes for personalized attention",
-                        `Industry-recognized certification: ${program.certification}`,
-                        program.charges
-                          ? `Program Fee: ${program.charges}`
-                          : "Career guidance and placement assistance",
-                      ].map((item, idx) => (
+                      {(program.highlights.length > 0
+                        ? [
+                            ...program.highlights,
+                            program.charges ? `Program Fee: ${program.charges}` : "",
+                          ].filter(Boolean)
+                        : [
+                            "Hands-on practical training",
+                            "Small batch sizes for personalized attention",
+                            `Industry-recognized certification: ${program.certification}`,
+                            program.charges
+                              ? `Program Fee: ${program.charges}`
+                              : "Career guidance and placement assistance",
+                          ]
+                      ).map((item, idx) => (
                         <li key={idx} className="flex items-center text-[#3c2415]">
                           <span className="text-amber-600 mr-2 text-lg">✓</span>
                           <span>{item}</span>
