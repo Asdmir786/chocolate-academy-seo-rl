@@ -53,8 +53,30 @@ export default async function IntensiveProgramsPage() {
     highlights: c.highlights ?? [],
   }))
 
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Chocolate Academy Pakistan Intensive Programs",
+    itemListElement: programs.map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Course",
+        name: p.title,
+        description: p.description,
+        url: `https://chocolateacademy.com.pk/courses/intensive-programs/${p.id}`,
+        provider: {
+          "@type": "EducationalOrganization",
+          name: "Chocolate Academy Pakistan",
+          url: "https://chocolateacademy.com.pk",
+        },
+      },
+    })),
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
       <Header />
 
       {/* Page Banner */}

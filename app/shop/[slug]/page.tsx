@@ -7,8 +7,31 @@ import Footer from "@/components/footer"
 import ProductCard, { type CityOption } from "@/components/product-card"
 import ProductOrderBox from "@/components/product-order-box"
 import { getProductBySlug, getProducts, getCities, toPublicProduct } from "@/lib/cms"
+import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
+
+const SITE_URL = "https://chocolateacademy.com.pk"
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const cmsProduct = await getProductBySlug(slug)
+  if (!cmsProduct) return { title: "Product Not Found | Chocolate Academy Pakistan" }
+  const product = toPublicProduct(cmsProduct)
+  const desc = product.description?.slice(0, 160) || `Buy ${product.name} from Chocolate Academy Pakistan.`
+  return {
+    title: `${product.name} | Chocolate Academy Pakistan`,
+    description: desc,
+    alternates: { canonical: `/shop/${product.slug}` },
+    openGraph: {
+      title: product.name,
+      description: desc,
+      url: `${SITE_URL}/shop/${product.slug}`,
+      images: product.image ? [{ url: product.image }] : undefined,
+      type: "website",
+    },
+  }
+}
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -24,6 +47,35 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   const product = toPublicProduct(cmsProduct)
+
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    image: product.image ? [`${SITE_URL}${product.image.startsWith("http") ? "" : ""}${product.image}`] : undefined,
+    description: product.description,
+    sku: product.sku || String(product.id),
+    category: product.category,
+    brand: { "@type": "Brand", name: "Chocolate Academy Pakistan" },
+    offers: {
+      "@type": "Offer",
+      url: `${SITE_URL}/shop/${product.slug}`,
+      priceCurrency: "PKR",
+      price: product.price,
+      availability: "https://schema.org/InStock",
+      seller: { "@type": "Organization", name: "Chocolate Academy Pakistan" },
+    },
+  }
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Shop", item: `${SITE_URL}/shop` },
+      { "@type": "ListItem", position: 3, name: product.name, item: `${SITE_URL}/shop/${product.slug}` },
+    ],
+  }
 
   const allCities: CityOption[] = cmsCities.map((c) => ({
     name: c.name,
@@ -44,6 +96,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="flex flex-col min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <Header />
 
       {/* Page Title Image with Centered Title and Breadcrumb */}
