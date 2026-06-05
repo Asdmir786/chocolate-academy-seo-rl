@@ -138,7 +138,7 @@ export function AdminDashboard({ admin }: { admin: AdminUser }) {
           {section === "courses" && <CoursesSection />}
           {section === "newsletters" && <NewslettersSection />}
           {section === "reports" && <ReportsSection />}
-          {section === "settings" && <SettingsSection currentAdminId={admin.id} />}
+          {section === "settings" && <SettingsSection currentEmail={admin.email} />}
         </main>
       </div>
     </div>
