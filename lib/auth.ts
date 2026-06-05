@@ -5,7 +5,8 @@ import bcrypt from "bcryptjs"
 import { sql, ensureSchema } from "./db"
 
 const SESSION_COOKIE = "ca_admin_session"
-const SESSION_DAYS = 7
+const SESSION_DAYS = 1
+const SESSION_DAYS_REMEMBER = 30
 
 export type AdminUser = {
   id: number
@@ -49,10 +50,11 @@ export async function verifyCredentials(email: string, password: string): Promis
   return { id: user.id, name: user.name, email: user.email, is_active: user.is_active, created_at: user.created_at }
 }
 
-export async function createSession(adminId: number) {
+export async function createSession(adminId: number, remember = false) {
   await ensureSchema()
   const token = randomBytes(32).toString("hex")
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
+  const days = remember ? SESSION_DAYS_REMEMBER : SESSION_DAYS
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
   await sql`
     INSERT INTO admin_sessions (token, admin_id, expires_at)
     VALUES (${token}, ${adminId}, ${expiresAt.toISOString()})
@@ -60,8 +62,8 @@ export async function createSession(adminId: number) {
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
     path: "/",
     expires: expiresAt,
   })

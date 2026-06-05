@@ -1,23 +1,37 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Lock, Mail } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 
+const REMEMBER_KEY = "ca_admin_remember_email"
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY)
+      if (saved) {
+        setEmail(saved)
+        setRemember(true)
+      }
+    } catch {
+      // ignore storage access errors
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,12 +48,21 @@ export default function LoginPage() {
       const res = await fetch("/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, remember }),
       })
       const data = await res.json()
       if (res.ok && data.success) {
-        router.push("/admin")
-        router.refresh()
+        try {
+          if (remember) {
+            localStorage.setItem(REMEMBER_KEY, email)
+          } else {
+            localStorage.removeItem(REMEMBER_KEY)
+          }
+        } catch {
+          // ignore storage access errors
+        }
+        // Hard navigation is more reliable than router.push inside embedded/iframe previews
+        window.location.assign("/admin")
       } else {
         setError(data.error || "Invalid email or password")
         setIsLoading(false)
@@ -105,6 +128,16 @@ export default function LoginPage() {
                         autoComplete="current-password"
                       />
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={remember}
+                      onCheckedChange={(checked) => setRemember(checked === true)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal text-[#3c2415] cursor-pointer">
+                      Remember me on this device
+                    </Label>
                   </div>
                   <Button
                     type="submit"
