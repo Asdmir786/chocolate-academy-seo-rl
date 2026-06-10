@@ -33,6 +33,8 @@ type WhatsappClick = {
   city: string | null
   source: string | null
   button_location: string | null
+  phone_number: string | null
+  url: string | null
   timestamp: string
   value: number
 }
@@ -105,7 +107,7 @@ export function ReportsSection() {
 
   const filteredClicks = useMemo(() => {
     let list = clicks.filter((c) =>
-      [c.product_name, c.city, c.source].filter(Boolean).some((v) => v!.toLowerCase().includes(query.toLowerCase())),
+      [c.product_name, c.city, c.source, c.phone_number].filter(Boolean).some((v) => v!.toLowerCase().includes(query.toLowerCase())),
     )
     if (cityFilter !== "all") list = list.filter((c) => c.city === cityFilter)
     list = [...list].sort((a, b) => {
@@ -247,6 +249,7 @@ export function ReportsSection() {
                 <TableRow>
                   <TableHead>Product / Inquiry</TableHead>
                   <TableHead>City</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead className="text-right">Est. Value</TableHead>
                   <TableHead>Date</TableHead>
@@ -255,13 +258,13 @@ export function ReportsSection() {
               <TableBody>
                 {clickLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filteredClicks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       No conversations found.
                     </TableCell>
                   </TableRow>
@@ -270,6 +273,7 @@ export function ReportsSection() {
                     <TableRow key={c.id}>
                       <TableCell className="font-medium text-foreground">{c.product_name || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{c.city ? titleCase(c.city) : "—"}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{c.phone_number || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{prettySource(c.source)}</TableCell>
                       <TableCell className="text-right">
                         {c.value > 0 ? (

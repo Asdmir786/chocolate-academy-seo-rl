@@ -18,6 +18,8 @@ export async function GET() {
         wc.city,
         wc.source,
         wc.button_location,
+        wc.phone_number,
+        wc.url,
         wc.timestamp,
         COALESCE(
           (SELECT p.price FROM products p WHERE p.id::text = wc.product_id),
