@@ -1,58 +1,74 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Lock, User } from "lucide-react"
+import { AlertCircle, Lock, Mail } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 
+const REMEMBER_KEY = "ca_admin_remember_email"
+
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
-  // Check if already logged in
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
-    if (isAuthenticated) {
-      router.push("/admin/analytics")
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY)
+      if (saved) {
+        setEmail(saved)
+        setRemember(true)
+      }
+    } catch {
+      // ignore storage access errors
     }
-  }, [router])
+  }, [])
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Simple validation
-    if (!username || !password) {
-      setError("Please enter both username and password")
+    if (!email || !password) {
+      setError("Please enter both email and password")
       setIsLoading(false)
       return
     }
 
-    // Check credentials (hardcoded for this example)
-    if (username === "admin" && password === "chocolate@#") {
-      // Set authentication in localStorage
-      localStorage.setItem("adminAuthenticated", "true")
-
-      // Add timestamp for session expiration (24 hours)
-      const expiresAt = new Date().getTime() + 24 * 60 * 60 * 1000
-      localStorage.setItem("adminAuthExpires", expiresAt.toString())
-
-      // Redirect to admin dashboard
-      router.push("/admin/analytics")
-    } else {
-      setError("Invalid username or password")
+    try {
+      const res = await fetch("/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        try {
+          if (remember) {
+            localStorage.setItem(REMEMBER_KEY, email)
+          } else {
+            localStorage.removeItem(REMEMBER_KEY)
+          }
+        } catch {
+          // ignore storage access errors
+        }
+        // Hard navigation is more reliable than router.push inside embedded/iframe previews
+        window.location.assign("/admin")
+      } else {
+        setError(data.error || "Invalid email or password")
+        setIsLoading(false)
+      }
+    } catch (err) {
+      setError("Something went wrong. Please try again.")
       setIsLoading(false)
     }
   }
@@ -67,7 +83,7 @@ export default function LoginPage() {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center text-[#3c2415]">Admin Login</CardTitle>
               <CardDescription className="text-center">
-                Enter your credentials to access the admin dashboard
+                Sign in to manage Chocolate Academy content
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -80,17 +96,19 @@ export default function LoginPage() {
               <form onSubmit={handleLogin}>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username" className="text-[#3c2415]">
-                      Username
+                    <Label htmlFor="email" className="text-[#3c2415]">
+                      Email
                     </Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        id="username"
-                        placeholder="Enter your username"
+                        id="email"
+                        type="email"
+                        placeholder="admin@chocolateacademy.com.pk"
                         className="pl-10"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="username"
                       />
                     </div>
                   </div>
@@ -107,23 +125,41 @@ export default function LoginPage() {
                         className="pl-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
                       />
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={remember}
+                      onCheckedChange={(checked) => setRemember(checked === true)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal text-[#3c2415] cursor-pointer">
+                      Remember me on this device
+                    </Label>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-[#3c2415] hover:bg-[#5a3a28]"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                        Signing in...
+                      </div>
+                    ) : (
+                      "Sign In"
+                    )}
+                  </Button>
                 </div>
               </form>
             </CardContent>
-            <CardFooter>
-              <Button className="w-full bg-[#3c2415] hover:bg-[#5a3a28]" onClick={handleLogin} disabled={isLoading}>
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                    Signing in...
-                  </div>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
+            <CardFooter className="text-center">
+              <p className="text-xs text-muted-foreground w-full">
+                Authorized personnel only. All activity is logged.
+              </p>
             </CardFooter>
           </Card>
         </div>

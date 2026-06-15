@@ -1,27 +1,11 @@
-"use client"
-
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronRight, Download, Calendar } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
-import { Button } from "@/components/ui/button"
+import { getNewsletters } from "@/lib/cms"
 
-// Map of available newsletter PDFs keyed by "Month-Year"
-const AVAILABLE_PDFS: Record<string, { path: string; downloadName: string }> = {
-  "December-2025": {
-    path: "/images/pdfs/CA Journel Final.pdf",
-    downloadName: "CA-Journal-December-2025.pdf",
-  },
-  "March-2026": {
-    path: "/images/pdfs/CA-Journal-March-2026.pdf",
-    downloadName: "CA-Journal-March-2026.pdf",
-  },
-  "April-2026": {
-    path: "/images/pdfs/CA-Journal-April-2026.pdf",
-    downloadName: "CA-Journal-April-2026.pdf",
-  },
-}
+export const dynamic = "force-dynamic"
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -34,24 +18,16 @@ const getMonths = () => {
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth() // 0-indexed
 
-  const monthList: Array<{ month: string; year: number; filename: string }> = []
+  const monthList: Array<{ month: string; year: number }> = []
 
   // Current year months up to and including current month
   for (let i = 0; i <= currentMonth; i++) {
-    monthList.push({
-      month: MONTH_NAMES[i],
-      year: currentYear,
-      filename: `${MONTH_NAMES[i].toLowerCase()}-${currentYear}.pdf`,
-    })
+    monthList.push({ month: MONTH_NAMES[i], year: currentYear })
   }
 
   // Previous year months for the remaining months
   for (let i = currentMonth + 1; i < 12; i++) {
-    monthList.push({
-      month: MONTH_NAMES[i],
-      year: currentYear - 1,
-      filename: `${MONTH_NAMES[i].toLowerCase()}-${currentYear - 1}.pdf`,
-    })
+    monthList.push({ month: MONTH_NAMES[i], year: currentYear - 1 })
   }
 
   // Sort newest first: compare year desc, then month index desc
@@ -63,33 +39,28 @@ const getMonths = () => {
   return monthList
 }
 
-// Determine the single most-recent available newsletter key
-const getLatestAvailableKey = () => {
-  return Object.keys(AVAILABLE_PDFS).sort((a, b) => {
-    const [aMonth, aYear] = a.split("-")
-    const [bMonth, bYear] = b.split("-")
-    if (Number(bYear) !== Number(aYear)) return Number(bYear) - Number(aYear)
-    return MONTH_NAMES.indexOf(bMonth) - MONTH_NAMES.indexOf(aMonth)
-  })[0] ?? null
-}
+export default async function NewsletterPage() {
+  const newsletters = await getNewsletters(true)
 
-export default function NewsletterPage() {
-  const months = getMonths()
-  const latestKey = getLatestAvailableKey()
-
-  const handleDownload = (month: string, year: number) => {
-    const key = `${month}-${year}`
-    const pdf = AVAILABLE_PDFS[key]
-    if (!pdf) return
-
-    const link = document.createElement("a")
-    link.href = pdf.path
-    link.download = pdf.downloadName
-    link.target = "_blank"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  // Build available map keyed by "Month-Year" from active DB newsletters
+  const availablePdfs: Record<string, { path: string; downloadName: string }> = {}
+  for (const n of newsletters) {
+    availablePdfs[`${n.month}-${n.year}`] = {
+      path: n.pdf_url,
+      downloadName: n.download_name || `CA-Journal-${n.month}-${n.year}.pdf`,
+    }
   }
+
+  const months = getMonths()
+
+  // Determine the single most-recent available newsletter key
+  const latestKey =
+    Object.keys(availablePdfs).sort((a, b) => {
+      const [aMonth, aYear] = a.split("-")
+      const [bMonth, bYear] = b.split("-")
+      if (Number(bYear) !== Number(aYear)) return Number(bYear) - Number(aYear)
+      return MONTH_NAMES.indexOf(bMonth) - MONTH_NAMES.indexOf(aMonth)
+    })[0] ?? null
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -140,57 +111,78 @@ export default function NewsletterPage() {
 
           {/* Month Buttons Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto">
-            {months.map(({ month, year, filename }) => {
+            {months.map(({ month, year }) => {
               const key = `${month}-${year}`
-              const isAvailable = key in AVAILABLE_PDFS
+              const pdf = availablePdfs[key]
+              const isAvailable = Boolean(pdf)
               const isLatest = key === latestKey
+
+              const innerContent = (
+                <>
+                  {/* "New" banner ribbon */}
+                  {isLatest && (
+                    <div className="absolute top-3 right-[-28px] z-20 rotate-45 bg-amber-500 text-white text-[10px] font-bold px-8 py-0.5 shadow-sm tracking-wider uppercase">
+                      New
+                    </div>
+                  )}
+                  {/* Background pattern */}
+                  <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div
+                      className="w-full h-full"
+                      style={{
+                        backgroundImage: "url('/images/chocolate-pattern.png')",
+                        backgroundSize: "100px",
+                        backgroundRepeat: "repeat",
+                      }}
+                    />
+                  </div>
+
+                  {/* Content */}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <Calendar className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-[#3c2415] mb-2 sm:mb-3 group-hover:text-amber-600 transition-colors" />
+                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#3c2415] mb-1 group-hover:text-amber-600 transition-colors text-center">
+                      {month}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#5a3a28] mb-2 sm:mb-3 md:mb-4">{year}</p>
+                    <div className="flex items-center text-[#3c2415] group-hover:text-amber-600 transition-colors">
+                      <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <span className="text-xs sm:text-sm font-medium">Download</span>
+                    </div>
+                  </div>
+
+                  {/* Hover effect overlay */}
+                  {isAvailable && (
+                    <div className="absolute bottom-0 left-0 w-full h-0 bg-gradient-to-t from-[#3c2415] to-transparent group-hover:h-full transition-all duration-300 opacity-10" />
+                  )}
+                </>
+              )
+
+              const baseClasses =
+                "group relative bg-white rounded-lg p-4 sm:p-5 md:p-6 shadow-md transition-all duration-300 border-2 overflow-hidden block"
+
+              if (isAvailable) {
+                return (
+                  <a
+                    key={key}
+                    href={pdf.path}
+                    download={pdf.downloadName}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${baseClasses} hover:shadow-xl border-transparent hover:border-amber-400 active:scale-95 cursor-pointer`}
+                  >
+                    {innerContent}
+                  </a>
+                )
+              }
+
               return (
-              <button
-                key={key}
-                onClick={() => handleDownload(month, year)}
-                disabled={!isAvailable}
-                className={`group relative bg-white rounded-lg p-4 sm:p-5 md:p-6 shadow-md transition-all duration-300 border-2 overflow-hidden ${
-                  isAvailable
-                    ? "hover:shadow-xl border-transparent hover:border-amber-400 active:scale-95 cursor-pointer"
-                    : "opacity-50 cursor-not-allowed"
-                }`}
-              >
-                {/* "New" banner ribbon */}
-                {isLatest && (
-                  <div className="absolute top-3 right-[-28px] z-20 rotate-45 bg-amber-500 text-white text-[10px] font-bold px-8 py-0.5 shadow-sm tracking-wider uppercase">
-                    New
-                  </div>
-                )}
-                {/* Background pattern */}
-                <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <div
-                    className="w-full h-full"
-                    style={{
-                      backgroundImage: "url('/images/chocolate-pattern.png')",
-                      backgroundSize: "100px",
-                      backgroundRepeat: "repeat",
-                    }}
-                  />
+                <div
+                  key={key}
+                  aria-disabled="true"
+                  className={`${baseClasses} opacity-50 cursor-not-allowed`}
+                >
+                  {innerContent}
                 </div>
-
-                {/* Content */}
-                <div className="relative z-10 flex flex-col items-center">
-                  <Calendar className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-[#3c2415] mb-2 sm:mb-3 group-hover:text-amber-600 transition-colors" />
-                  <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#3c2415] mb-1 group-hover:text-amber-600 transition-colors text-center">
-                    {month}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[#5a3a28] mb-2 sm:mb-3 md:mb-4">{year}</p>
-                  <div className="flex items-center text-[#3c2415] group-hover:text-amber-600 transition-colors">
-                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="text-xs sm:text-sm font-medium">Download</span>
-                  </div>
-                </div>
-
-                {/* Hover effect overlay */}
-                {isAvailable && (
-                  <div className="absolute bottom-0 left-0 w-full h-0 bg-gradient-to-t from-[#3c2415] to-transparent group-hover:h-full transition-all duration-300 opacity-10" />
-                )}
-              </button>
               )
             })}
           </div>
@@ -198,8 +190,8 @@ export default function NewsletterPage() {
           {/* Info Message */}
           <div className="mt-8 sm:mt-10 md:mt-12 max-w-2xl mx-auto bg-amber-50 border-l-4 border-amber-400 p-4 sm:p-5 md:p-6 rounded-r-lg">
             <p className="text-sm sm:text-base text-[#3c2415]">
-              <strong className="text-amber-600">Note:</strong> New newsletters are added monthly. If you don't see a
-              specific month's newsletter, it may not be available yet. Check back soon!
+              <strong className="text-amber-600">Note:</strong> New newsletters are added monthly. If you don&apos;t see
+              a specific month&apos;s newsletter, it may not be available yet. Check back soon!
             </p>
           </div>
         </div>
@@ -209,4 +201,3 @@ export default function NewsletterPage() {
     </div>
   )
 }
-
