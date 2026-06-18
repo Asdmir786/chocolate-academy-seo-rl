@@ -25,7 +25,7 @@ export default function AdminPage() {
       router.push("/admin/login")
     } else {
       // Redirect to analytics page if authenticated
-      router.push("/admin/analytics")
+      router.push("/admin/newsletters")
     }
   }, [router])
 

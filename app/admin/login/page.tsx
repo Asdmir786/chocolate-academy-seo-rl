@@ -24,7 +24,7 @@ export default function LoginPage() {
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
     if (isAuthenticated) {
-      router.push("/admin/analytics")
+      router.push("/admin/newsletters")
     }
   }, [router])
 
@@ -50,7 +50,7 @@ export default function LoginPage() {
       localStorage.setItem("adminAuthExpires", expiresAt.toString())
 
       // Redirect to admin dashboard
-      router.push("/admin/analytics")
+      router.push("/admin/newsletters")
     } else {
       setError("Invalid username or password")
       setIsLoading(false)

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronRight, Download, Calendar } from "lucide-react"
@@ -7,20 +8,16 @@ import Header from "@/components/header"
 import Footer from "@/components/footer"
 import { Button } from "@/components/ui/button"
 
-// Map of available newsletter PDFs keyed by "Month-Year"
-const AVAILABLE_PDFS: Record<string, { path: string; downloadName: string }> = {
-  "December-2025": {
-    path: "/images/pdfs/CA Journel Final.pdf",
-    downloadName: "CA-Journal-December-2025.pdf",
-  },
-  "March-2026": {
-    path: "/images/pdfs/CA-Journal-March-2026.pdf",
-    downloadName: "CA-Journal-March-2026.pdf",
-  },
-  "April-2026": {
-    path: "/images/pdfs/CA-Journal-April-2026.pdf",
-    downloadName: "CA-Journal-April-2026.pdf",
-  },
+type Newsletter = {
+  id: number
+  title: string
+  month: string
+  year: number
+  description: string | null
+  pdf_url: string
+  download_url: string
+  is_published: boolean
+  created_at: string
 }
 
 const MONTH_NAMES = [
@@ -63,28 +60,41 @@ const getMonths = () => {
   return monthList
 }
 
-// Determine the single most-recent available newsletter key
-const getLatestAvailableKey = () => {
-  return Object.keys(AVAILABLE_PDFS).sort((a, b) => {
-    const [aMonth, aYear] = a.split("-")
-    const [bMonth, bYear] = b.split("-")
-    if (Number(bYear) !== Number(aYear)) return Number(bYear) - Number(aYear)
-    return MONTH_NAMES.indexOf(bMonth) - MONTH_NAMES.indexOf(aMonth)
-  })[0] ?? null
-}
-
 export default function NewsletterPage() {
+  const [newsletters, setNewsletters] = useState<Newsletter[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/newsletters")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setNewsletters(data)
+        }
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error(err)
+        setLoading(false)
+      })
+  }, [])
+
   const months = getMonths()
+  
+  // Determine the single most-recent available newsletter
+  const getLatestAvailableKey = () => {
+    if (newsletters.length === 0) return null
+    return `${newsletters[0].month}-${newsletters[0].year}`
+  }
   const latestKey = getLatestAvailableKey()
 
   const handleDownload = (month: string, year: number) => {
-    const key = `${month}-${year}`
-    const pdf = AVAILABLE_PDFS[key]
-    if (!pdf) return
+    const nl = newsletters.find(n => n.month === month && n.year === year)
+    if (!nl) return
 
     const link = document.createElement("a")
-    link.href = pdf.path
-    link.download = pdf.downloadName
+    link.href = nl.download_url
+    link.download = `${month}-${year}.pdf`
     link.target = "_blank"
     document.body.appendChild(link)
     link.click()
@@ -140,9 +150,11 @@ export default function NewsletterPage() {
 
           {/* Month Buttons Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto">
-            {months.map(({ month, year, filename }) => {
+            {loading ? (
+              <div className="col-span-full text-center py-8">Loading newsletters...</div>
+            ) : months.map(({ month, year, filename }) => {
               const key = `${month}-${year}`
-              const isAvailable = key in AVAILABLE_PDFS
+              const isAvailable = newsletters.some(n => n.month === month && n.year === year)
               const isLatest = key === latestKey
               return (
               <button
