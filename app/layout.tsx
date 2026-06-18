@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://chocolateacademymaster.com"),
+  metadataBase: new URL("https://chocolateacademy.com.pk"),
   alternates: {
     canonical: "/",
   },
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     title: "Chocolate Academy Master - Premium Chocolate Making Courses",
     description:
       "Learn professional chocolate making with our comprehensive courses. Shop premium handcrafted chocolates and custom cakes.",
-    url: "https://chocolateacademymaster.com",
+    url: "https://chocolateacademy.com.pk",
     siteName: "Chocolate Academy Master",
     images: [
       {
@@ -69,9 +69,50 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Chocolate Academy Pakistan",
+    alternateName: "Chocolate Academy Master",
+    url: "https://chocolateacademy.com.pk",
+    logo: "https://chocolateacademy.com.pk/images/logo.png",
+    description:
+      "Chocolate Academy Pakistan offers professional chocolate making courses, intensive culinary diplomas, and premium handcrafted chocolates, cakes, and artisan treats.",
+    sameAs: ["https://www.instagram.com/", "https://www.facebook.com/"],
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: "+92-309-3336142",
+      contactType: "customer service",
+      areaServed: "PK",
+      availableLanguage: ["English", "Urdu"],
+    },
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "PK",
+      addressLocality: "Lahore",
+    },
+  }
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Chocolate Academy Pakistan",
+    url: "https://chocolateacademy.com.pk",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://chocolateacademy.com.pk/shop?q={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
           {`

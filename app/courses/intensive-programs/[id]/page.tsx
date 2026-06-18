@@ -5,120 +5,14 @@ import { ChevronRight } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getCourseBySlug, getCourses } from "@/lib/cms"
 import type { Metadata } from "next"
 
-// Program data
-export const programs = [
-  {
-    id: "cake-decoration",
-    title: "Cake Decoration & Fondant Art",
-    description:
-      "This 04-week premium Cake decoration and fondant art course will equip you with the knowledge and tools to slay any designer cake project your client demand. Master the art of making incredible cakes with a distinctive approach in a one-of-its-kind learning institute. The ultimate purpose of this 01-month course is to equip you with the basic and professional skills of handling fondant and buttercream. This course will include thorough sessions in which you will be provided with all the food material and a separate recipe book. After the course, students will be able to design their own fondant cakes as a final project.",
-    image: "/images/courses/cake-decor.webp",
-    duration: "1 month",
-    level: "Beginner to Advanced",
-    certification: "International Chocolate Academy",
-    price: 75000,
-    startDates: ["January 15, 2025", "March 10, 2025", "June 5, 2025"],
-    curriculum: [
-      "Week 1: Baking a cake using the creamy method, Making cake icing from scratch, Leveling cake layer, cake filling, crumb coating, and smooth frosting of cakes, Stabilizing single heightened cake",
-      "Week 2: Making Fondant from Scratch, Coloring the fondant, Preserving the fondant, Covering the cake with fondant, Sharpening the fondant cake edges, Using fondant tools in fondant decoration (roses, peony flowers, characters)",
-      "Week 3: Stabilizing two-tier cake with buttercream and fondant, Making gravity-defying cake, Character Molding and balancing, 3D Cake",
-      "Week 4: Learning to professionally stable three-tier cake with a stand, Costing an overview of the business of baking, The participants will cover two wedding cakes in three tiers, 3D Cake",
-    ],
-    instructors: [
-      {
-        name: "Chef Marie",
-        title: "Master Cake Artist",
-        bio: "With over 20 years of experience in cake artistry, Chef Marie specializes in fondant and buttercream techniques.",
-      },
-    ],
-    detailedCurriculum: {
-      complementaryClasses: ["Business Support", "Social Media Marketing", "Food Safety & Hygiene"],
-    },
-  },
-  {
-    id: "grand-diplome-en-chocolat-et-pattisserie",
-    title: "Grand Diplome en Chocolat Et Pattisserie",
-    description:
-      "A comprehensive 4-month program covering everything from theory and techniques to advanced chocolate mastery and entrepreneurship. This intensive course includes 14 core modules and complementary business classes, preparing you for a successful career in the culinary arts industry.",
-    image: "/images/courses/choc.webp",
-    duration: "4 months",
-    level: "Professional",
-    certification: "GPDP, TYPSY AUSTRALIA, ICM UK, INTERNATIONAL CHOCOLATE ACADEMY, HIGHFIELD UK",
-    price: 425000,
-    startDates: ["January 15, 2025", "April 15, 2025", "July 15, 2025"],
-    curriculum: [
-      "Theory and Techniques",
-      "Cakes",
-      "Pastry Passion",
-      "French Patisserie",
-      "Ice-Cream Delights",
-      "Modern Desserts and Entremets",
-      "Cake Decoration and Fondant Art",
-      "Chocolate Mastery",
-      "Artisan Bread",
-      "Quick Breads",
-      "Breakfast Creations",
-      "Hi-TEA Delights",
-      "Entrepreneurship Masterclasses",
-      "Patisserie Showcase and Challenges",
-    ],
-    instructors: [
-      {
-        name: "Chef Marie",
-        title: "Master Pastry Chef",
-        bio: "With over 20 years of experience in prestigious hotels across Europe and Asia, Chef Marie specializes in French patisserie and chocolate work.",
-      },
-    ],
-    detailedCurriculum: {
-      complementaryClasses: ["Business Support", "Social Media Marketing", "Food Safety & Hygiene"],
-    },
-  },
-  {
-    id: "grand-diploma-culinary",
-    title: "Grand Diplome en Culinary & Finishing Arts",
-    description:
-      "A comprehensive 16-week program covering essential culinary techniques, international cuisines, and professional finishing arts. This intensive course includes 15 core modules and complementary business classes, preparing you for a successful career in the culinary arts industry.",
-    image: "/images/courses/cul.webp",
-    duration: "16 weeks",
-    level: "Professional",
-    certification: "GPDP, TYPSY AUSTRALIA, ICM UK, INTERNATIONAL CHOCOLATE ACADEMY, HIGHFIELD UK",
-    price: 450000,
-    startDates: ["January 15, 2025", "April 15, 2025", "July 15, 2025"],
-    curriculum: [
-      "Essential Techniques",
-      "Health-Focused Cuisine",
-      "Soups, Salads, Sandwiches",
-      "Taste of Asia",
-      "Mediterranean Marvels",
-      "Flavors of the World",
-      "South Asian Delicacies",
-      "Breakfast Globally",
-      "Seafood Mastery",
-      "Fast & Flavorful Temptations",
-      "Art of Desserts",
-      "Hi-TEA Delights",
-      "Culinary Finesse",
-      "Entrepreneurship Classes",
-      "Culinary Showcase",
-    ],
-    instructors: [
-      {
-        name: "Chef Marie",
-        title: "Master Chef",
-        bio: "With over 20 years of experience in prestigious hotels across Europe and Asia, Chef Marie specializes in international cuisine and culinary arts.",
-      },
-    ],
-    detailedCurriculum: {
-      complementaryClasses: ["Business Support", "Social Media Marketing", "Food Safety & Hygiene"],
-    },
-  },
-]
+export const dynamic = "force-dynamic"
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const program = programs.find((p) => p.id === params.id)
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const program = await getCourseBySlug(id)
 
   if (!program) {
     return {
@@ -136,28 +30,21 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     "Professional Baking",
     "Pastry Diploma",
     "Chocolate Mastery",
-    ...program.curriculum, // Add curriculum items as keywords
+    ...(program.highlights ?? []),
   ].join(", ")
 
   return {
     title: program.title,
     description: program.description,
-    keywords: keywords,
+    keywords,
     alternates: {
-      canonical: `https://chocolateacademy.com.pk/courses/intensive-programs/${program.id}`, // Canonical tag
+      canonical: `https://chocolateacademy.com.pk/courses/intensive-programs/${program.slug}`,
     },
     openGraph: {
       title: program.title,
       description: program.description,
-      url: `https://chocolateacademy.com.pk/courses/intensive-programs/${program.id}`,
-      images: [
-        {
-          url: program.image || "/placeholder.svg", // Use the program's image
-          width: 1200,
-          height: 630,
-          alt: program.title,
-        },
-      ],
+      url: `https://chocolateacademy.com.pk/courses/intensive-programs/${program.slug}`,
+      images: [{ url: program.image || "/placeholder.svg", width: 1200, height: 630, alt: program.title }],
       type: "website",
     },
     twitter: {
@@ -169,12 +56,18 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   }
 }
 
-export default function ProgramDetailPage({ params }: { params: { id: string } }) {
-  const program = programs.find((p) => p.id === params.id)
+export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const program = await getCourseBySlug(id)
 
   if (!program) {
     notFound()
   }
+
+  const relatedPrograms = (await getCourses(true)).filter((p) => p.slug !== program.slug)
+
+  const registerHref = program.register_url || `/courses/register?course=${program.slug}`
+  const isExternalRegister = /^https?:\/\//.test(registerHref)
 
   // Structured Data for Course
   const courseSchema = {
@@ -189,29 +82,13 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
     },
     coursePrerequisites: program.level === "Beginner to Advanced" ? "None" : "Basic culinary skills",
     educationalCredentialAwarded: program.certification,
-    hasCourseInstance: program.startDates.map((date) => ({
-      "@type": "CourseInstance",
-      courseMode: "Onsite",
-      startDate: date,
-      // endDate: calculateEndDate(date, program.duration), // You might need a helper function for this
-      location: {
-        "@type": "Place",
-        name: "Chocolate Academy Pakistan Campuses",
-        address: {
-          "@type": "PostalAddress",
-          addressLocality: "Pakistan",
-          addressCountry: "PK",
-        },
-      },
-      offers: {
-        "@type": "Offer",
-        price: program.price,
-        priceCurrency: "PKR",
-        availability: "https://schema.org/InStock",
-        url: `https://chocolateacademy.com.pk/courses/register?course=${program.id}`,
-      },
-    })),
-    // Add more properties like `courseWorkload`, `learningResourceType`, etc. if available
+    offers: {
+      "@type": "Offer",
+      price: program.fee,
+      priceCurrency: "PKR",
+      availability: "https://schema.org/InStock",
+      url: `https://chocolateacademy.com.pk/courses/register?course=${program.slug}`,
+    },
   }
 
   return (
@@ -267,153 +144,46 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             <div className="md:col-span-2">
               <h2 className="text-3xl font-bold mb-6 text-[#3c2415]">Program Overview</h2>
-              <p className="text-gray-700 mb-6">{program.description}</p>
 
-              {program.detailedCurriculum && (
+              {program.program_overview ? (
+                <div
+                  className="prose prose-stone max-w-none text-gray-700 mb-8 [&_h1]:text-[#3c2415] [&_h2]:text-[#3c2415] [&_h3]:text-[#3c2415] [&_a]:text-amber-800 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
+                  dangerouslySetInnerHTML={{ __html: program.program_overview }}
+                />
+              ) : (
+                <p className="text-gray-700 mb-6">{program.description}</p>
+              )}
+
+              {/* Highlights */}
+              {program.highlights && program.highlights.length > 0 && (
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                  <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Detailed Curriculum</h3>
-                  {program.detailedCurriculum.sauces && (
-                    <div className="mb-4">
-                      <h4 className="font-semibold text-[#3c2415] mb-2">Sauces:</h4>
-                      <ul className="list-disc pl-6 text-[#3c2415]">
-                        {program.detailedCurriculum.sauces.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {program.detailedCurriculum.buttercream && (
-                    <div className="mb-4">
-                      <h4 className="font-semibold text-[#3c2415] mb-2">Buttercream:</h4>
-                      <ul className="list-disc pl-6 text-[#3c2415]">
-                        {program.detailedCurriculum.buttercream.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {program.detailedCurriculum.flavors && (
-                    <div className="mb-4">
-                      <h4 className="font-semibold text-[#3c2415] mb-2">Flavors of Cakes:</h4>
-                      <ul className="list-disc pl-6 text-[#3c2415]">
-                        {program.detailedCurriculum.flavors.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {program.detailedCurriculum.complementary && (
-                    <div className="mb-4">
-                      <h4 className="font-semibold text-[#3c2415] mb-2">Complementary Classes:</h4>
-                      <ul className="list-disc pl-6 text-[#3c2415]">
-                        {program.detailedCurriculum.complementary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Program Highlights</h3>
+                  <ul className="space-y-2">
+                    {program.highlights.map((item, idx) => (
+                      <li key={idx} className="flex items-start text-[#3c2415]">
+                        <span className="text-amber-600 mr-2 text-lg leading-6">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
-              <Tabs defaultValue="curriculum" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-[#f5e6d8]">
-                  <TabsTrigger
-                    value="curriculum"
-                    className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white"
-                  >
-                    Curriculum
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="instructors"
-                    className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white"
-                  >
-                    Instructors
-                  </TabsTrigger>
-                  {/* <TabsTrigger
-                    value="schedule"
-                    className="data-[state=active]:bg-[#3c2415] data-[state=active]:text-white"
-                  >
-                    Schedule
-                  </TabsTrigger> */}
-                </TabsList>
-
-                <TabsContent value="curriculum" className="bg-white p-6 rounded-b-lg shadow-md">
-                  <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Detailed Curriculum</h3>
-                  <p className="text-gray-700 mb-4">
+              {/* Detailed Curriculum */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Detailed Curriculum</h3>
+                {program.detailed_curriculum ? (
+                  <div
+                    className="prose prose-stone max-w-none text-gray-700 [&_h1]:text-[#3c2415] [&_h2]:text-[#3c2415] [&_h3]:text-[#3c2415] [&_a]:text-amber-800 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
+                    dangerouslySetInnerHTML={{ __html: program.detailed_curriculum }}
+                  />
+                ) : (
+                  <p className="text-gray-700">
                     Our comprehensive curriculum is designed to provide both theoretical knowledge and practical skills.
-                    Each module builds upon the previous one, ensuring a structured learning experience.
+                    Contact us for the full module breakdown.
                   </p>
-
-                  {program.id === "grand-diplome-en-chocolat-et-pattisserie" ? (
-                    <div className="space-y-8">
-                      <div>
-                        <h4 className="font-bold text-lg text-[#3c2415] mb-4">Course Modules</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {program.curriculum.map((item, index) => (
-                            <div key={index} className="border-l-4 border-amber-800 pl-4 py-2">
-                              <h5 className="font-semibold text-[#3c2415]">Module {index + 1}</h5>
-                              <p className="text-gray-700 text-sm">{item}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {program.detailedCurriculum?.complementaryClasses && (
-                        <div>
-                          <h4 className="font-bold text-lg text-[#3c2415] mb-4">Complementary Classes</h4>
-                          <ul className="list-disc pl-6 text-gray-700 space-y-2">
-                            {program.detailedCurriculum.complementaryClasses.map((item, idx) => (
-                              <li key={idx}>{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {program.curriculum.map((item, index) => (
-                        <div key={index} className="border-l-4 border-amber-800 pl-4">
-                          <h4 className="font-bold text-[#3c2415]">Week {index + 1}</h4>
-                          <p className="text-gray-700">{item}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="instructors" className="bg-white p-6 rounded-b-lg shadow-md">
-                  <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Meet Your Instructors</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {program.instructors.map((instructor, index) => (
-                      <div key={index} className="flex flex-col items-center text-center p-4 border rounded-lg">
-                        <div className="w-24 h-24 rounded-full bg-[#3c2415] mb-4 flex items-center justify-center text-white text-2xl font-bold">
-                          {instructor.name.charAt(0)}
-                        </div>
-                        <h4 className="font-bold text-[#3c2415]">{instructor.name}</h4>
-                        <p className="text-amber-800 mb-2">{instructor.title}</p>
-                        <p className="text-gray-700 text-sm">{instructor.bio}</p>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="schedule" className="bg-white p-6 rounded-b-lg shadow-md">
-                  <h3 className="text-xl font-bold mb-4 text-[#3c2415]">Upcoming Batches</h3>
-                  <div className="space-y-4">
-                    {program.startDates.map((date, index) => (
-                      <div key={index} className="flex justify-between items-center p-4 border-b">
-                        <div>
-                          <h4 className="font-bold text-[#3c2415]">Batch {index + 1}</h4>
-                          <p className="text-gray-700">Starting: {date}</p>
-                        </div>
-                        <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm">
-                          {index === 0 ? "Few Seats Left" : "Open for Registration"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-              </Tabs>
+                )}
+              </div>
             </div>
 
             <div>
@@ -431,18 +201,26 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
                   </div>
                   <div className="flex justify-between border-b pb-2">
                     <span className="text-gray-700">Certification:</span>
-                    <span className="font-semibold text-[#3c2415]">{program.certification.split(",")[0]}</span>
+                    <span className="font-semibold text-[#3c2415] text-right">
+                      {program.certification?.split(",")[0]}
+                    </span>
                   </div>
                   <div className="flex justify-between border-b pb-2">
                     <span className="text-gray-700">Fee:</span>
-                    <span className="font-semibold text-[#3c2415]">Rs. {program.price.toLocaleString()}</span>
+                    <span className="font-semibold text-[#3c2415]">Rs. {Number(program.fee).toLocaleString()}</span>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <Link href={`/courses/register?course=${program.id}`}>
-                    <Button className="w-full bg-[#3c2415] hover:bg-[#5a3a28] text-white">Register Now</Button>
-                  </Link>
+                  {isExternalRegister ? (
+                    <a href={registerHref} target="_blank" rel="noopener noreferrer">
+                      <Button className="w-full bg-[#3c2415] hover:bg-[#5a3a28] text-white">Register Now</Button>
+                    </a>
+                  ) : (
+                    <Link href={registerHref}>
+                      <Button className="w-full bg-[#3c2415] hover:bg-[#5a3a28] text-white">Register Now</Button>
+                    </Link>
+                  )}
 
                   <a
                     href={`https://wa.me/923248842000?text=Hello,%20I'm%20interested%20in%20the%20${encodeURIComponent(program.title)}%20program.`}
@@ -482,16 +260,15 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
       </section>
 
       {/* Related Programs */}
-      <section className="py-12 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-8 text-[#3c2415]">Related Programs</h2>
+      {relatedPrograms.length > 0 && (
+        <section className="py-12 bg-white">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold mb-8 text-[#3c2415]">Related Programs</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {programs
-              .filter((p) => p.id !== program.id)
-              .map((relatedProgram) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {relatedPrograms.map((relatedProgram) => (
                 <div
-                  key={relatedProgram.id}
+                  key={relatedProgram.slug}
                   className="bg-[#fdf6f0] rounded-lg overflow-hidden shadow-md flex flex-col"
                 >
                   <div className="relative h-48">
@@ -516,7 +293,7 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
                           {relatedProgram.level}
                         </span>
                       </div>
-                      <Link href={`/courses/intensive-programs/${relatedProgram.id}`}>
+                      <Link href={`/courses/intensive-programs/${relatedProgram.slug}`}>
                         <Button variant="outline" className=" border-[#3c2415] hover:bg-[#3c2415] hover:text-white">
                           View Details
                         </Button>
@@ -525,9 +302,10 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
                   </div>
                 </div>
               ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-12 bg-[#3c2415] text-white">
@@ -537,7 +315,7 @@ export default function ProgramDetailPage({ params }: { params: { id: string } }
             Take the first step towards a rewarding career in the culinary arts. Register now for {program.title} and
             join our community of culinary professionals.
           </p>
-          <Link href={`/courses/register?course=${program.id}`}>
+          <Link href={`/courses/register?course=${program.slug}`}>
             <Button className="bg-amber-500 hover:bg-amber-600 text-white text-lg px-8 py-6">Apply Now</Button>
           </Link>
         </div>

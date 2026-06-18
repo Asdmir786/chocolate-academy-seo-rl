@@ -1,6 +1,7 @@
 import { get } from "@vercel/blob"
 import { NextResponse } from "next/server"
-import { getDb, initNewslettersTable, type NewsletterRecord } from "@/lib/newsletters"
+import { ensureSchema, sql } from "@/lib/db"
+import type { Newsletter } from "@/lib/cms"
 
 type RouteContext = {
   params: Promise<{
@@ -10,7 +11,7 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   try {
-    await initNewslettersTable()
+    await ensureSchema()
 
     const { id } = await context.params
     const newsletterId = Number(id)
@@ -19,17 +20,16 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Invalid newsletter id" }, { status: 400 })
     }
 
-    const sql = getDb()
     const result = (await sql`
-      SELECT id, title, month, year, description, pdf_url, storage_type, is_published, created_at
+      SELECT id, title, month, year, pdf_url, download_name, description, is_active, storage_type
       FROM newsletters
       WHERE id = ${newsletterId}
       LIMIT 1
-    `) as NewsletterRecord[]
+    `) as Newsletter[]
 
     const newsletter = result[0]
 
-    if (!newsletter || !newsletter.is_published) {
+    if (!newsletter || !newsletter.is_active) {
       return NextResponse.json({ error: "Newsletter not found" }, { status: 404 })
     }
 
@@ -43,7 +43,7 @@ export async function GET(request: Request, context: RouteContext) {
       return new Response(blob.stream, {
         headers: {
           "content-type": blob.blob.contentType || "application/pdf",
-          "content-disposition": `attachment; filename="${newsletter.month}-${newsletter.year}.pdf"`,
+          "content-disposition": `attachment; filename="${newsletter.download_name || `${newsletter.month}-${newsletter.year}.pdf`}"`,
           "cache-control": "private, no-store",
         },
       })

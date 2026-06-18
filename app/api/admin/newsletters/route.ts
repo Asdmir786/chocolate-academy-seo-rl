@@ -1,42 +1,42 @@
-import { NextResponse } from "next/server"
 import { put } from "@vercel/blob"
-import {
-  getDb,
-  getNewsletterDownloadPath,
-  initNewslettersTable,
-  listNewsletters,
-} from "@/lib/newsletters"
+import { NextResponse } from "next/server"
+import { requireAdmin } from "@/lib/api-guard"
+import { createNewsletter, getNewsletters } from "@/lib/cms"
 
 export async function GET() {
-  try {
-    await initNewslettersTable()
-    const newsletters = await listNewsletters()
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
 
-    return NextResponse.json(
-      newsletters.map((newsletter) => ({
+  try {
+    const newsletters = await getNewsletters(false)
+    return NextResponse.json({
+      newsletters: newsletters.map((newsletter) => ({
         ...newsletter,
-        download_url: getNewsletterDownloadPath(newsletter.id),
+        download_url: `/api/newsletters/${newsletter.id}/download`,
+        is_published: newsletter.is_active,
       })),
-    )
+    })
   } catch (error) {
-    console.error("Error fetching newsletters:", error)
-    return NextResponse.json({ error: "Failed to fetch newsletters" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to fetch newsletters" },
+      { status: 500 },
+    )
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   try {
-    await initNewslettersTable()
-    const formData = await req.formData()
-
+    const formData = await request.formData()
     const file = formData.get("file") as File | null
-    const title = formData.get("title") as string
-    const month = formData.get("month") as string
-    const year = formData.get("year") as string
-    const description = formData.get("description") as string
-    const is_published = formData.get("is_published") === "true"
-
-    let pdf_url = (formData.get("pdf_url") as string) || ""
+    const title = String(formData.get("title") || "")
+    const month = String(formData.get("month") || "")
+    const year = Number(formData.get("year") || 0)
+    const description = String(formData.get("description") || "")
+    const is_active = formData.get("is_published") === "true"
+    let pdf_url = String(formData.get("pdf_url") || "")
     let storage_type: "external" | "local" | "blob-private" = pdf_url.startsWith("/") ? "local" : "external"
 
     if (file && file.size > 0) {
@@ -50,26 +50,36 @@ export async function POST(req: Request) {
       storage_type = "blob-private"
     }
 
-    if (!pdf_url) {
-      return NextResponse.json({ error: "No PDF provided" }, { status: 400 })
+    if (!title || !month || !year || !pdf_url) {
+      return NextResponse.json({ success: false, error: "Missing newsletter fields" }, { status: 400 })
     }
 
-    const sql = getDb()
-    const result = await sql`
-      INSERT INTO newsletters (title, month, year, description, pdf_url, storage_type, is_published)
-      VALUES (${title}, ${month}, ${Number(year)}, ${description}, ${pdf_url}, ${storage_type}, ${is_published})
-      RETURNING *
-    `
+    const download_name =
+      file?.name?.trim() || `${title.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "") || "newsletter"}.pdf`
+
+    const newsletter = await createNewsletter({
+      title,
+      month,
+      year,
+      pdf_url,
+      download_name,
+      description,
+      is_active,
+      storage_type,
+    })
 
     return NextResponse.json({
       success: true,
       newsletter: {
-        ...result[0],
-        download_url: getNewsletterDownloadPath(result[0].id),
+        ...newsletter,
+        download_url: `/api/newsletters/${newsletter.id}/download`,
+        is_published: newsletter.is_active,
       },
     })
   } catch (error) {
-    console.error("Error creating newsletter:", error)
-    return NextResponse.json({ error: "Failed to create newsletter" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to create newsletter" },
+      { status: 500 },
+    )
   }
 }

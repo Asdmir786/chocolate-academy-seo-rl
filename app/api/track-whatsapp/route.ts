@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
+import { resolveClickContext } from "@/lib/click-context"
 
 // Types
 export type WhatsAppClickEvent = {
@@ -110,21 +111,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required field: url" }, { status: 400 })
     }
 
-    // Create event object
-    const event: WhatsAppClickEvent = {
-      productId: body.productId || null,
-      productName: body.productName || "Not specified",
-      url: body.url,
-      city: body.city || "not-specified",
-      source: body.source || "unknown",
-      buttonLocation: body.buttonLocation || "unknown",
-      timestamp: new Date().toISOString(),
-      userAgent: body.userAgent || null,
-      phoneNumber: body.phoneNumber || null,
-    }
-
-    console.log("📝 Prepared event for Neon database:", JSON.stringify(event, null, 2))
-
     // Test database connection
     await testDatabaseConnection()
 
@@ -133,6 +119,31 @@ export async function POST(request: Request) {
 
     // Get database client
     const sql = getDatabaseClient()
+
+    // Resolve attribution so no click is ever stored as "Not specified":
+    // derive product/course from the URL slug and city from the dialed number.
+    const resolved = await resolveClickContext(sql, {
+      url: body.url,
+      productId: body.productId,
+      productName: body.productName,
+      city: body.city,
+      phoneNumber: body.phoneNumber,
+    })
+
+    // Create event object
+    const event: WhatsAppClickEvent = {
+      productId: resolved.productId,
+      productName: resolved.productName,
+      url: body.url,
+      city: resolved.city,
+      source: body.source || "unknown",
+      buttonLocation: body.buttonLocation || "unknown",
+      timestamp: new Date().toISOString(),
+      userAgent: body.userAgent || null,
+      phoneNumber: body.phoneNumber || null,
+    }
+
+    console.log("📝 Prepared event for Neon database:", JSON.stringify(event, null, 2))
 
     // Insert the record into Neon database
     console.log("🔄 Inserting record into Neon whatsapp_clicks table...")

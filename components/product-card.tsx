@@ -10,21 +10,25 @@ import { useState } from "react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { trackWhatsAppClick } from "@/lib/analytics"
 
+export type CityOption = { name: string; slug: string; whatsapp_number: string }
+
 interface ProductCardProps {
   product: Product
+  cities?: CityOption[]
 }
 
-const cityNumbers = {
-  lahore: "0309-3336142",
-  islamabad: "0326-8079985",
-  karachi: "0333-6669828",
-  faisalabad: "0309-7778646",
-  rawalpindi: "0309-3336144",
-}
+// Fallback cities used when no DB-driven cities are passed in
+const defaultCities: CityOption[] = [
+  { name: "Lahore", slug: "lahore", whatsapp_number: "0309-3336142" },
+  { name: "Islamabad", slug: "islamabad", whatsapp_number: "0326-8079985" },
+  { name: "Karachi", slug: "karachi", whatsapp_number: "0333-6669828" },
+  { name: "Faisalabad", slug: "faisalabad", whatsapp_number: "0309-7778646" },
+  { name: "Rawalpindi", slug: "rawalpindi", whatsapp_number: "0309-3336144" },
+]
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, cities }: ProductCardProps) {
+  const cityList = cities && cities.length > 0 ? cities : defaultCities
   const [modalOpen, setModalOpen] = useState(false)
-  const [selectedCity, setSelectedCity] = useState<keyof typeof cityNumbers | null>(null)
   const whatsappMessage = `Hello, I'm interested in the ${product.name} from Chocolate Academy Pakistan.`
 
   const handleWhatsappClick = (e: React.MouseEvent) => {
@@ -32,20 +36,19 @@ export default function ProductCard({ product }: ProductCardProps) {
     setModalOpen(true)
   }
 
-  const handleCitySelect = (city: keyof typeof cityNumbers) => {
-    setSelectedCity(city)
+  const handleCitySelect = (city: CityOption) => {
     setModalOpen(false)
 
     // Track this click
     trackWhatsAppClick({
       productId: product.id.toString(),
       productName: product.name,
-      city: city,
+      city: city.slug,
       source: "product_card",
       buttonLocation: "product_card_whatsapp_button",
     })
 
-    const number = cityNumbers[city].replace(/-/g, "")
+    const number = city.whatsapp_number.replace(/[-\s]/g, "")
     const url = `https://wa.me/92${number}?text=${encodeURIComponent(whatsappMessage)}`
     window.open(url, "_blank")
   }
@@ -141,9 +144,9 @@ export default function ProductCard({ product }: ProductCardProps) {
         <DialogContent className="max-w-xs text-center">
           <h3 className="text-lg font-bold mb-4">Select Your City</h3>
           <div className="flex flex-col gap-2">
-            {Object.entries(cityNumbers).map(([city, number]) => (
-              <Button key={city} variant="outline" onClick={() => handleCitySelect(city as keyof typeof cityNumbers)}>
-                {city.charAt(0).toUpperCase() + city.slice(1)}
+            {cityList.map((city) => (
+              <Button key={city.slug} variant="outline" onClick={() => handleCitySelect(city)}>
+                {city.name}
               </Button>
             ))}
           </div>

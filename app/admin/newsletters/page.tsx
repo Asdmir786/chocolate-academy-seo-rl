@@ -27,6 +27,7 @@ type Newsletter = {
   year: number
   description: string | null
   pdf_url: string
+  download_name?: string
   download_url: string
   is_published: boolean
   created_at: string
@@ -58,11 +59,6 @@ export default function NewslettersAdminPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
-    if (!isAuthenticated) {
-      router.push("/admin/login")
-      return
-    }
     fetchNewsletters()
   }, [router])
 
@@ -70,9 +66,13 @@ export default function NewslettersAdminPage() {
     try {
       setLoading(true)
       const res = await fetch("/api/admin/newsletters")
+      if (res.status === 401) {
+        router.push("/admin/login")
+        return
+      }
       if (!res.ok) throw new Error("Failed to fetch newsletters")
       const data = await res.json()
-      setNewsletters(Array.isArray(data) ? data : [])
+      setNewsletters(Array.isArray(data?.newsletters) ? data.newsletters : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error fetching data")
     } finally {
