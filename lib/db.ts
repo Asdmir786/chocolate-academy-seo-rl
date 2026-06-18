@@ -150,6 +150,20 @@ async function initSchema() {
   await sql`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`
   await sql`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS storage_type VARCHAR(20) NOT NULL DEFAULT 'external'`
   await sql`ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  await sql`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'newsletters' AND column_name = 'is_published'
+      ) THEN
+        EXECUTE 'UPDATE newsletters SET is_active = COALESCE(is_published, TRUE)';
+        EXECUTE 'ALTER TABLE newsletters DROP COLUMN is_published';
+      END IF;
+    END
+    $$;
+  `
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletters_month_year ON newsletters(month, year)`
 
   // ---- Course registration inquiries (captured from the register form) ----
