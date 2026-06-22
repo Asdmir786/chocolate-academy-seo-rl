@@ -55,9 +55,10 @@ const empty = {
 }
 
 type FormState = typeof empty & { id?: number }
+type AdminNewsletter = Newsletter & { download_url?: string }
 
 export function NewslettersSection() {
-  const { data, isLoading, mutate } = useSWR<{ newsletters: Newsletter[] }>("/api/admin/newsletters", fetcher)
+  const { data, isLoading, mutate } = useSWR<{ newsletters: AdminNewsletter[] }>("/api/admin/newsletters", fetcher)
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<FormState>(empty)
@@ -177,7 +178,7 @@ export function NewslettersSection() {
                   <TableCell>
                     {n.pdf_url ? (
                       <a
-                        href={n.pdf_url}
+                        href={n.download_url || n.pdf_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

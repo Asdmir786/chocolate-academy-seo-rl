@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useRef, useState } from "react"
+import { upload } from "@vercel/blob/client"
 import { Upload, X, FileText, ImageIcon, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 
 interface FileUploadProps {
   value: string
@@ -13,15 +15,68 @@ interface FileUploadProps {
   kind?: "image" | "pdf"
 }
 
+const MAX_PDF_SIZE_BYTES = 250 * 1024 * 1024
+const LARGE_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function sanitizeFilename(filename: string) {
+  return filename
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
 export function FileUpload({ value, onChange, folder, accept = "image/*", kind = "image" }: FileUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState("")
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [selectedFileName, setSelectedFileName] = useState("")
+  const [selectedFileSize, setSelectedFileSize] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = async (file: File) => {
     setUploading(true)
     setError("")
+    setUploadProgress(0)
+    setSelectedFileName(file.name)
+    setSelectedFileSize(formatFileSize(file.size))
+
     try {
+      if (kind === "pdf") {
+        if (file.type !== "application/pdf") {
+          throw new Error("Only PDF files are allowed.")
+        }
+
+        if (file.size > MAX_PDF_SIZE_BYTES) {
+          throw new Error(`PDF is too large. The current limit is ${formatFileSize(MAX_PDF_SIZE_BYTES)}.`)
+        }
+
+        const safeName = sanitizeFilename(file.name) || `newsletter-${Date.now()}.pdf`
+        const yearFolder = new Date().getFullYear()
+        const blob = await upload(`${folder}/${yearFolder}/${safeName}`, file, {
+          access: "private",
+          contentType: "application/pdf",
+          handleUploadUrl: "/api/admin/newsletters/client-upload",
+          multipart: file.size > LARGE_UPLOAD_THRESHOLD_BYTES,
+          onUploadProgress: (event) => {
+            setUploadProgress(Math.round(event.percentage))
+          },
+        })
+
+        onChange(blob.url)
+        setUploadProgress(100)
+        return
+      }
+
       const formData = new FormData()
       formData.append("file", file)
       formData.append("folder", folder)
@@ -29,11 +84,12 @@ export function FileUpload({ value, onChange, folder, accept = "image/*", kind =
       const data = await res.json()
       if (res.ok && data.success) {
         onChange(data.url)
+        setUploadProgress(100)
       } else {
         setError(data.error || "Upload failed")
       }
-    } catch {
-      setError("Upload failed. Please try again.")
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed. Please try again.")
     } finally {
       setUploading(false)
     }
@@ -65,31 +121,58 @@ export function FileUpload({ value, onChange, folder, accept = "image/*", kind =
           </div>
         )}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-1 flex-col gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={uploading}
             onClick={() => inputRef.current?.click()}
+            className="w-fit"
           >
             {uploading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Uploading...
               </>
             ) : (
               <>
-                <Upload className="mr-2 h-4 w-4" /> {value ? "Replace" : "Upload"} {kind === "pdf" ? "PDF" : "image"}
+                <Upload className="mr-2 h-4 w-4" />
+                {value ? "Replace" : "Upload"} {kind === "pdf" ? "PDF" : "image"}
               </>
             )}
           </Button>
-          {value && (
-            <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => onChange("")}>
+
+          {kind === "pdf" ? (
+            <p className="text-xs text-muted-foreground">
+              Max {formatFileSize(MAX_PDF_SIZE_BYTES)}. Large PDFs upload directly to storage.
+            </p>
+          ) : null}
+
+          {selectedFileName ? (
+            <p className="text-xs text-muted-foreground">
+              {selectedFileName}
+              {selectedFileSize ? ` · ${selectedFileSize}` : ""}
+            </p>
+          ) : null}
+
+          {value ? (
+            <Button type="button" variant="ghost" size="sm" className="w-fit text-destructive" onClick={() => onChange("")}>
               <X className="mr-1 h-3 w-3" /> Remove
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
+
+      {(uploading || uploadProgress > 0) && kind === "pdf" ? (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{uploading ? "Uploading PDF..." : "Upload complete"}</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <Progress value={uploadProgress} className="h-2" />
+        </div>
+      ) : null}
 
       <input
         ref={inputRef}
@@ -109,7 +192,7 @@ export function FileUpload({ value, onChange, folder, accept = "image/*", kind =
         placeholder={`Or paste a ${kind === "pdf" ? "PDF" : "image"} URL / path`}
         className="text-xs"
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   )
 }

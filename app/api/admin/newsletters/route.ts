@@ -1,4 +1,3 @@
-import { put } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/api-guard"
 import { createNewsletter, getNewsletters } from "@/lib/cms"
@@ -29,40 +28,63 @@ export async function POST(request: Request) {
   if (auth instanceof NextResponse) return auth
 
   try {
-    const formData = await request.formData()
-    const file = formData.get("file") as File | null
-    const title = String(formData.get("title") || "")
-    const month = String(formData.get("month") || "")
-    const year = Number(formData.get("year") || 0)
-    const description = String(formData.get("description") || "")
-    const is_active = formData.get("is_published") === "true"
-    let pdf_url = String(formData.get("pdf_url") || "")
-    let storage_type: "external" | "local" | "blob-private" = pdf_url.startsWith("/") ? "local" : "external"
+    const contentType = request.headers.get("content-type") || ""
+    let title = ""
+    let month = ""
+    let year = 0
+    let description = ""
+    let is_active = false
+    let pdf_url = ""
+    let storage_type: "external" | "local" | "blob-private" = "external"
+    let download_name = ""
 
-    if (file && file.size > 0) {
-      const sanitizedFilename = file.name.replace(/\s+/g, "-")
-      const blob = await put(`newsletters/${year}/${month.toLowerCase()}-${sanitizedFilename}`, file, {
-        access: "private",
-        addRandomSuffix: true,
-        multipart: file.size > 4_500_000,
-      })
-      pdf_url = blob.url
-      storage_type = "blob-private"
+    if (contentType.includes("application/json")) {
+      const body = (await request.json()) as {
+        title?: string
+        month?: string
+        year?: number | string
+        description?: string
+        is_published?: boolean
+        pdf_url?: string
+        storage_type?: "external" | "local" | "blob-private"
+        download_name?: string
+      }
+
+      title = String(body.title || "")
+      month = String(body.month || "")
+      year = Number(body.year || 0)
+      description = String(body.description || "")
+      is_active = Boolean(body.is_published)
+      pdf_url = String(body.pdf_url || "")
+      storage_type =
+        body.storage_type ||
+        (pdf_url.startsWith("/") ? "local" : pdf_url.includes("blob.vercel-storage.com") ? "blob-private" : "external")
+      download_name = String(body.download_name || "")
+    } else {
+      const formData = await request.formData()
+      title = String(formData.get("title") || "")
+      month = String(formData.get("month") || "")
+      year = Number(formData.get("year") || 0)
+      description = String(formData.get("description") || "")
+      is_active = formData.get("is_published") === "true"
+      pdf_url = String(formData.get("pdf_url") || "")
+      storage_type = pdf_url.startsWith("/") ? "local" : pdf_url.includes("blob.vercel-storage.com") ? "blob-private" : "external"
+      download_name = String(formData.get("download_name") || "")
     }
 
     if (!title || !month || !year || !pdf_url) {
       return NextResponse.json({ success: false, error: "Missing newsletter fields" }, { status: 400 })
     }
 
-    const download_name =
-      file?.name?.trim() || `${title.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "") || "newsletter"}.pdf`
+    const safeDownloadName =
+      download_name.trim() || `${title.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "") || "newsletter"}.pdf`
 
     const newsletter = await createNewsletter({
       title,
       month,
       year,
       pdf_url,
-      download_name,
+      download_name: safeDownloadName,
       description,
       is_active,
       storage_type,
